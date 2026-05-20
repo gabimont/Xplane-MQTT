@@ -1,25 +1,49 @@
-# X-Plane Integration
+# X-Plane Integration + Radar MQTT
 
-Integracao do autopiloto PIPER-1-6 com o X-Plane via plugin XPlaneConnect (XPC).
-O autopiloto roda dentro de um modelo Simulink (`xplane_autopilot.slx`) que reusa
-o mesmo subsystem `controle` ja validado no `controle/Não Linear/modeloNL1.slx`,
-demonstrando que a mesma malha funciona em diferentes plantas (linear, NL, X-Plane).
+Dois subsistemas convivem neste repositório:
+
+1. **Autopiloto PIPER-1-6 ↔ X-Plane via XPC** (Simulink, `xplane_autopilot.slx`).
+   A mesma malha de controle do `modeloNL1.slx`, agora pilotando a aeronave
+   dentro do X-Plane.
+2. **Radar MQTT distribuído**. Uma torre (GUI MATLAB) monitora N aeronaves;
+   cada uma roda X-Plane + MATLAB em outra máquina e publica sua posição
+   via MQTT. Veja [radar/README_radar.md](radar/README_radar.md) e
+   [aircraft/README_publisher.md](aircraft/README_publisher.md).
 
 ## Estrutura
 
 ```
-Xplane/
-├── xplane_autopilot.slx        # Modelo Simulink: controle + bridge UDP
-├── criar_xplane_autopilot.m    # Script que (re)gera o .slx do zero
+Xplane-MQTT/
+├── xplane_autopilot.slx        # Autopiloto: controle + bridge UDP (Simulink)
 ├── inicializar_xplane.m        # InitFcn: ganhos, refs, paths XPC, abre UDP
-├── posicionar_xplane.m         # StartFcn: teleporta a aeronave (100 m, 15 m/s, hdg=0)
+├── posicionar_xplane.m         # StartFcn: teleporta a aeronave
 ├── close_xplane.m              # StopFcn: fecha conexao UDP
-├── read_xplane.m               # Le 10 sensores via getDREFs (chamado pelo bloco MATLAB Fcn)
-├── send_xplane.m               # Envia [delta_e, delta_a, delta_r, delta_T] via sendCTRL
-└── XPlaneConnect-master/       # Biblioteca XPC (API MATLAB + plugins)
-    ├── MATLAB/+XPlaneConnect/
-    └── Resources/plugins/      # win.xpl / lin.xpl / mac.xpl
+├── read_xplane.m               # Le 10 sensores via getDREFs
+├── send_xplane.m               # Envia [delta_e, delta_a, delta_r, delta_T]
+├── XPlaneConnect-master/       # Biblioteca XPC (API MATLAB + plugins)
+│
+├── radar/                      # Lado torre (Mac): GUI PPI subscrita em MQTT
+│   ├── radar_gui.m
+│   ├── radar_state.m
+│   ├── ll2rb.m
+│   └── README_radar.md
+├── aircraft/                   # Lado aeronave (Windows): publisher X-Plane→MQTT
+│   ├── start_publisher.m
+│   ├── publish_aircraft.m
+│   ├── stop_publisher.m
+│   └── README_publisher.md
+└── common/
+    └── mqtt_topic.m            # Convenção de nome de tópico
 ```
+
+## Radar MQTT em uma linha
+
+- **Mac (torre)**: `addpath('radar'); radar_gui`
+- **Windows (aeronave, com X-Plane aberto)**: `addpath('aircraft'); pub = start_publisher(Callsign='PIPER01');`
+- Broker default: `tcp://test.mosquitto.org:1883` (público, sem credenciais).
+- Tópico: `radar/aircraft/<CALLSIGN>/state`, payload JSON `{lat, lon, alt, hdg, vt, ts, callsign}`.
+
+Para o autopiloto Simulink → segue inalterado, instruções abaixo.
 
 ## Como usar
 
