@@ -31,6 +31,24 @@ With X-Plane open and the aircraft on a runway:
 interrupts the loop and triggers `onCleanup`, which calls
 `stop_publisher` automatically.
 
+## Running multiple aircraft (one PC each)
+
+For each additional aircraft / PC:
+
+1. `git clone` (or `git pull`) the repo on that PC
+2. Open [`aircraft/start.m`](start.m) and **change `CALLSIGN`** to
+   something unique — e.g. `'CESSNA02'`, `'GLIDER03'`. The topic
+   becomes `radar/aircraft/<CALLSIGN>/state` automatically.
+3. (Optional) edit [`teleport_aircraft.m`](teleport_aircraft.m) on
+   that PC if you want a different initial heading / altitude / N-E
+   offset so the aircraft don't all spawn at the same point.
+4. Press **Run (▶)**.
+
+The tower (`radar_gui` on the Mac) doesn't need any changes — its
+default subscription `radar/aircraft/+/state` picks up every callsign
+that publishes under the prefix. New aircraft just appear on the PPI
+as soon as they publish.
+
 ## Quick start (manual, two commands)
 
 If you prefer the command window:

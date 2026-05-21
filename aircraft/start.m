@@ -13,12 +13,32 @@
 %                                            `teleport_aircraft.m`
 
 % ====================================================================
-% EDIT IF NEEDED
+% EDIT PER AIRCRAFT  (different value on each PC)
 % ====================================================================
+% Unique identifier for THIS PC's aircraft. MUST be different on each
+% PC so the tower can tell them apart. The MQTT topic published is
+% derived from this:
+%
+%     radar/aircraft/<CALLSIGN>/state
+%
+% e.g. CALLSIGN='PIPER01'  → radar/aircraft/PIPER01/state
+%      CALLSIGN='CESSNA02' → radar/aircraft/CESSNA02/state
+%
+% The tower's radar_gui subscribes to radar/aircraft/+/state by default,
+% so every running publisher shows up automatically — no extra config
+% needed on the tower when you add a new PC.
 CALLSIGN = 'PIPER01';
-BROKER   = 'tcp://broker.emqx.io';
-PORT     = 1883;
-RATE_HZ  = 5;
+
+% Optional: also tweak the EDIT block at the top of
+% `teleport_aircraft.m` per PC (heading / altitude / N-E offset) so
+% the aircraft don't all spawn on top of each other.
+
+% ====================================================================
+% SHARED  (keep matching across every PC and the tower)
+% ====================================================================
+BROKER   = 'tcp://broker.emqx.io';   % broker hostname (with tcp:// or ssl://)
+PORT     = 1883;                      % MQTT port
+RATE_HZ  = 5;                         % publish rate
 % ====================================================================
 
 publisher_loop(CALLSIGN, BROKER, PORT, RATE_HZ);
