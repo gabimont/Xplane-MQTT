@@ -24,10 +24,14 @@ function radar_gui()
     % --- Initial state (captured by all nested callbacks via closure) ---
     state = radar_state();
 
-    % Handles to the optional fullscreen PPI (created lazily on demand)
+    % Handles to the optional fullscreen view (created lazily on demand)
     fs_fig         = [];
-    fs_pax         = [];
+    fs_pax         = [];   % polaraxes (PPI mode) OR axes (Map mode)
+    fs_layout      = [];   % parent uigridlayout — needed to rebuild axes
     fs_range_field = [];
+    fs_toggle_btn  = [];
+    fs_title_lbl   = [];
+    fs_mode        = 'ppi';
 
     % ============================  UI  ============================
     fig = uifigure('Name', 'X-Plane Radar (MQTT)', 'Position', [80 80 1280 780]);
@@ -271,7 +275,12 @@ function radar_gui()
         maxRange.Value     = v;
         pax.RLim           = [0 v*1000];
         if ~isempty(fs_pax) && isvalid(fs_pax)
-            fs_pax.RLim = [0 v*1000];
+            if isa(fs_pax, 'matlab.graphics.axis.PolarAxes')
+                fs_pax.RLim = [0 v*1000];
+            else
+                fs_pax.XLim = [-v, v] * 1000;
+                fs_pax.YLim = [-v, v] * 1000;
+            end
         end
         if ~isempty(fs_range_field) && isvalid(fs_range_field)
             fs_range_field.Value = v;
@@ -332,9 +341,14 @@ function radar_gui()
 
             % Render to the main PPI ...
             render_ppi(pax, keep, stale);
-            % ... and to the fullscreen PPI if it's open.
+            % ... and to the fullscreen axes if it's open, picking the
+            % renderer based on whether the axes is polar or cartesian.
             if ~isempty(fs_pax) && isvalid(fs_pax)
-                render_ppi(fs_pax, keep, stale);
+                if isa(fs_pax, 'matlab.graphics.axis.PolarAxes')
+                    render_ppi(fs_pax, keep, stale);
+                else
+                    render_map(fs_pax, keep, stale);
+                end
             end
 
             % Update the aircraft table (only lives in the main window)
@@ -396,24 +410,84 @@ function radar_gui()
         end
     end
 
+    function render_map(ax, keep, stale)
+        % Draw all aircraft blips and trails into a cartesian axes (X=East, Y=North).
+        % Preserve the user's pan/zoom state (XLim/YLim) across redraws.
+        xl = ax.XLim;
+        yl = ax.YLim;
+        delete(ax.Children);
+
+        % Faint range rings centered on tower
+        theta_ring = linspace(0, 2*pi, 100);
+        n_rings = 5;
+        for k = 1:n_rings
+            rk = state.max_range_km * k / n_rings * 1000;
+            plot(ax, rk*cos(theta_ring), rk*sin(theta_ring), '-', ...
+                 'Color', [0.3 0.7 0.3 0.35], 'LineWidth', 0.5, ...
+                 'HandleVisibility','off');
+        end
+        % N-S / E-W crosshair extending to current view limits
+        plot(ax, xl, [0 0], '-', 'Color', [0.3 0.7 0.3 0.35], ...
+             'HandleVisibility','off');
+        plot(ax, [0 0], yl, '-', 'Color', [0.3 0.7 0.3 0.35], ...
+             'HandleVisibility','off');
+        % Tower marker at origin
+        plot(ax, 0, 0, 'p', 'MarkerSize', 14, ...
+             'MarkerEdgeColor', [0.6 0.95 0.6], ...
+             'MarkerFaceColor', [0.6 0.95 0.6], ...
+             'HandleVisibility','off');
+
+        for k = 1:numel(keep)
+            cs = keep{k};
+            ac = state.aircraft(cs);
+            [r_m, brg_rad] = ll2rb(state.tower_lat, state.tower_lon, ac.lat, ac.lon);
+            x = r_m * sin(brg_rad);   % East
+            y = r_m * cos(brg_rad);   % North
+            isStale = any(strcmp(stale, cs));
+            if isStale, color = [0.6 0.6 0.6]; else, color = [0.2 1.0 0.4]; end
+
+            % Trail
+            if isKey(state.history, cs)
+                h = state.history(cs);
+                if numel(h.lat) >= 2
+                    [rT, brgT] = ll2rb(state.tower_lat, state.tower_lon, h.lat, h.lon);
+                    plot(ax, rT .* sin(brgT), rT .* cos(brgT), '-', ...
+                         'Color', color, 'LineWidth', 1);
+                end
+            end
+
+            % Blip + label
+            scatter(ax, x, y, 110, color, 'filled', '^', 'MarkerEdgeColor', 'w');
+            text(ax, x, y, sprintf('  %s  %.0fm', cs, ac.alt), ...
+                 'FontSize', 10, 'Color', color, ...
+                 'VerticalAlignment','bottom', 'FontWeight','bold');
+        end
+
+        % Restore the user's pan/zoom
+        ax.XLim = xl;
+        ax.YLim = yl;
+    end
+
     function on_fullscreen(~, ~)
         if ~isempty(fs_fig) && isvalid(fs_fig)
             figure(fs_fig);     % already open — bring to front
             return;
         end
-        fs_fig = uifigure('Name', 'X-Plane Radar — PPI', ...
+        fs_fig = uifigure('Name', 'X-Plane Radar — Fullscreen', ...
                           'Color', [0 0 0], ...
                           'WindowState', 'fullscreen');
         fs_fig.CloseRequestFcn = @(~,~) on_fs_close();
 
-        fsLayout = uigridlayout(fs_fig, [2 1]);
-        fsLayout.RowHeight   = {44, '1x'};
-        fsLayout.RowSpacing  = 4;
-        fsLayout.Padding     = [10 10 10 10];
-        fsLayout.BackgroundColor = [0 0 0];
+        fs_layout = uigridlayout(fs_fig, [2 1]);
+        fs_layout.RowHeight   = {44, '1x'};
+        fs_layout.RowSpacing  = 4;
+        fs_layout.Padding     = [10 10 10 10];
+        fs_layout.BackgroundColor = [0 0 0];
 
-        fsTop = uigridlayout(fsLayout, [1 7]);
-        fsTop.ColumnWidth = {110, 80, 80, '1x', 'fit', 100, 110};
+        fsTop = uigridlayout(fs_layout, [1 8]);
+        fsTop.Layout.Row = 1;
+        fsTop.Layout.Column = 1;
+        fsTop.ColumnWidth = {110, 80, 80, 110, '1x', 'fit', 100, 110};
         fsTop.ColumnSpacing = 8;
         uibutton(fsTop, 'Text', '< Close', ...
                  'ButtonPushedFcn', @(~,~) on_fs_close());
@@ -423,7 +497,10 @@ function radar_gui()
         uibutton(fsTop, 'Text', 'Zoom -', ...
                  'Tooltip', 'Loosen the range (zoom out)', ...
                  'ButtonPushedFcn', @(~,~) zoom_fs(2.0));
-        uilabel(fsTop, 'Text', 'X-Plane Radar — PPI', ...
+        fs_toggle_btn = uibutton(fsTop, 'Text', 'Switch to Map', ...
+                 'Tooltip', 'Switch between PPI (polar) and Map (cartesian, pan/zoom) view', ...
+                 'ButtonPushedFcn', @(~,~) on_toggle_fs_mode());
+        fs_title_lbl = uilabel(fsTop, 'Text', 'X-Plane Radar — PPI', ...
                 'FontSize', 20, 'FontColor', [0.6 0.9 0.6], ...
                 'HorizontalAlignment', 'center');
         uilabel(fsTop, 'Text', 'Range (km):', 'FontColor', [0.6 0.9 0.6]);
@@ -435,17 +512,79 @@ function radar_gui()
                  'Tooltip', 'Snap tower to first known aircraft', ...
                  'ButtonPushedFcn', @(~,~) on_snap_tower());
 
-        fs_pax = polaraxes(fsLayout);
-        fs_pax.ThetaZeroLocation = 'top';
-        fs_pax.ThetaDir          = 'clockwise';
-        fs_pax.RLim              = [0 state.max_range_km*1000];
-        fs_pax.GridColor         = [0.3 0.7 0.3];
-        fs_pax.GridAlpha         = 0.45;
-        fs_pax.Color             = [0.03 0.08 0.03];
-        fs_pax.RColor            = [0.6 0.95 0.6];
-        fs_pax.ThetaColor        = [0.6 0.95 0.6];
-        fs_pax.FontSize          = 14;
-        hold(fs_pax, 'on');
+        fs_mode = 'ppi';
+        build_fs_axes();
+    end
+
+    function build_fs_axes()
+        % Build (or rebuild) the fullscreen axes for the current fs_mode.
+        if isempty(fs_layout) || ~isvalid(fs_layout), return; end
+        if ~isempty(fs_pax) && isvalid(fs_pax)
+            delete(fs_pax);
+        end
+        if strcmp(fs_mode, 'ppi')
+            ax = polaraxes(fs_layout);
+            ax.Layout.Row    = 2;
+            ax.Layout.Column = 1;
+            ax.ThetaZeroLocation = 'top';
+            ax.ThetaDir          = 'clockwise';
+            ax.RLim              = [0 state.max_range_km*1000];
+            ax.GridColor         = [0.3 0.7 0.3];
+            ax.GridAlpha         = 0.45;
+            ax.Color             = [0.03 0.08 0.03];
+            ax.RColor            = [0.6 0.95 0.6];
+            ax.ThetaColor        = [0.6 0.95 0.6];
+            ax.FontSize          = 14;
+            hold(ax, 'on');
+            if ~isempty(fs_title_lbl) && isvalid(fs_title_lbl)
+                fs_title_lbl.Text = 'X-Plane Radar — PPI';
+            end
+            if ~isempty(fs_toggle_btn) && isvalid(fs_toggle_btn)
+                fs_toggle_btn.Text = 'Switch to Map';
+            end
+        else  % 'map'
+            ax = axes('Parent', fs_layout);
+            ax.Layout.Row    = 2;
+            ax.Layout.Column = 1;
+            r = state.max_range_km * 1000;
+            ax.XLim          = [-r, r];
+            ax.YLim          = [-r, r];
+            ax.XLimMode      = 'manual';
+            ax.YLimMode      = 'manual';
+            ax.DataAspectRatio = [1 1 1];
+            ax.Color         = [0.03 0.08 0.03];
+            ax.XColor        = [0.6 0.95 0.6];
+            ax.YColor        = [0.6 0.95 0.6];
+            ax.GridColor     = [0.3 0.7 0.3];
+            ax.GridAlpha     = 0.45;
+            ax.FontSize      = 13;
+            grid(ax, 'on');
+            xlabel(ax, 'East (m)');
+            ylabel(ax, 'North (m)');
+            hold(ax, 'on');
+            % Make the built-in axes toolbar (pan / zoom / restore) visible.
+            try
+                axtoolbar(ax, {'pan','zoomin','zoomout','restoreview','datacursor'});
+                enableDefaultInteractivity(ax);
+            catch
+            end
+            if ~isempty(fs_title_lbl) && isvalid(fs_title_lbl)
+                fs_title_lbl.Text = 'X-Plane Radar — Map';
+            end
+            if ~isempty(fs_toggle_btn) && isvalid(fs_toggle_btn)
+                fs_toggle_btn.Text = 'Switch to PPI';
+            end
+        end
+        fs_pax = ax;
+    end
+
+    function on_toggle_fs_mode()
+        if strcmp(fs_mode, 'ppi')
+            fs_mode = 'map';
+        else
+            fs_mode = 'ppi';
+        end
+        build_fs_axes();
     end
 
     function on_fs_close()
@@ -454,7 +593,11 @@ function radar_gui()
         end
         fs_fig         = [];
         fs_pax         = [];
+        fs_layout      = [];
         fs_range_field = [];
+        fs_toggle_btn  = [];
+        fs_title_lbl   = [];
+        fs_mode        = 'ppi';
     end
 
     function zoom_fs(factor)
