@@ -73,12 +73,12 @@ function radar_gui()
     subsPanel.RowSpacing = 4;
 
     subRow = uigridlayout(subsPanel, [1 4]);
-    subRow.ColumnWidth = {'fit', '1x', 90, 90};
-    subRow.ColumnSpacing = 6;
+    subRow.ColumnWidth = {60, '1x', 110, 130};
+    subRow.ColumnSpacing = 8;
     uilabel(subRow, 'Text', 'Topic:');
     topicField = uieditfield(subRow, 'text', 'Value', 'radar/aircraft/+/state');
-    addBtn     = uibutton(subRow, 'Text', 'Subscribe',  'ButtonPushedFcn', @on_add_topic);
-    rmBtn      = uibutton(subRow, 'Text', 'Unsubscribe','ButtonPushedFcn', @on_rm_topic);
+    addBtn     = uibutton(subRow, 'Text', 'Subscribe',  'ButtonPushedFcn', @on_add_topic); %#ok<NASGU>
+    rmBtn      = uibutton(subRow, 'Text', 'Unsubscribe','ButtonPushedFcn', @on_rm_topic);  %#ok<NASGU>
 
     subsList = uilistbox(subsPanel, 'Items', state.subscriptions, ...
                         'Multiselect', 'off');
@@ -102,8 +102,8 @@ function radar_gui()
     hold(pax, 'on');
 
     % Right side panel
-    rightSide = uigridlayout(body, [3 1]);
-    rightSide.RowHeight = {'1x', 40, 40};
+    rightSide = uigridlayout(body, [2 1]);
+    rightSide.RowHeight = {'1x', 40};
     rightSide.RowSpacing = 6;
 
     acTable = uitable(rightSide);
@@ -112,33 +112,14 @@ function radar_gui()
     acTable.RowName       = {};
     acTable.Data          = cell(0,6);
 
-    twrRow = uigridlayout(rightSide, [1 5]);
-    twrRow.ColumnWidth = {'fit', 90, 90, 'fit', 70};
-    twrRow.ColumnSpacing = 6;
-    uilabel(twrRow, 'Text', 'Tower lat/lon:');
-    twrLat = uieditfield(twrRow, 'numeric', 'Value', state.tower_lat, ...
-                         'ValueDisplayFormat', '%.4f');
-    twrLon = uieditfield(twrRow, 'numeric', 'Value', state.tower_lon, ...
-                         'ValueDisplayFormat', '%.4f');
-    uilabel(twrRow, 'Text', 'Range (km):');
-    maxRange = uieditfield(twrRow, 'numeric', 'Value', state.max_range_km, ...
+    rangeRow = uigridlayout(rightSide, [1 3]);
+    rangeRow.ColumnWidth = {'fit', 90, '1x'};
+    rangeRow.ColumnSpacing = 8;
+    uilabel(rangeRow, 'Text', 'Range (km):');
+    maxRange = uieditfield(rangeRow, 'numeric', 'Value', state.max_range_km, ...
                            'Limits', [1 500], ...
                            'ValueChangedFcn', @on_range_change);
-
-    trailRow = uigridlayout(rightSide, [1 6]);
-    trailRow.ColumnWidth = {'fit', 60, 'fit', 60, 'fit', 60};
-    uilabel(trailRow, 'Text', 'Trail length:');
-    trailField = uieditfield(trailRow, 'numeric', 'Value', state.trail_len, ...
-                              'Limits', [0 500], ...
-                              'ValueChangedFcn', @(s,~) set_trail(s.Value));
-    uilabel(trailRow, 'Text', 'Stale (s):');
-    staleField = uieditfield(trailRow, 'numeric', 'Value', state.stale_sec, ...
-                              'Limits', [1 3600], ...
-                              'ValueChangedFcn', @(s,~) set_stale(s.Value));
-    uilabel(trailRow, 'Text', 'Drop (s):');
-    dropField  = uieditfield(trailRow, 'numeric', 'Value', state.drop_sec, ...
-                              'Limits', [1 86400], ...
-                              'ValueChangedFcn', @(s,~) set_drop(s.Value));
+    uilabel(rangeRow, 'Text', '');   % spacer
 
     bottomRow = uigridlayout(main, [1 2]);
     bottomRow.ColumnWidth   = {'1x', 130};
@@ -285,17 +266,6 @@ function radar_gui()
         end
     end
 
-    function set_trail(v)
-        state.trail_len = round(v);
-    end
-
-    function set_stale(v)
-        state.stale_sec = v;
-    end
-
-    function set_drop(v)
-        state.drop_sec = v;
-    end
 
     function redraw()
         % Bail quietly if the main figure has gone away (e.g. user closed
@@ -304,9 +274,6 @@ function radar_gui()
             return;
         end
         try
-            state.tower_lat = twrLat.Value;
-            state.tower_lon = twrLon.Value;
-
             now_s = posixtime(datetime('now'));
             ks = keys(state.aircraft);
             keep  = cell(0);
