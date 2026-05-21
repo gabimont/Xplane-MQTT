@@ -21,6 +21,15 @@ function radar_gui()
     repo = fileparts(here);
     addpath(fullfile(repo, 'common'));
 
+    % Kill any leftover redraw timers from previous radar_gui sessions
+    % (e.g. when the user used `close all force` instead of the X button,
+    % which skips CloseRequestFcn and orphans the timer).
+    old_timers = timerfind('Name', 'radar_redraw');
+    if ~isempty(old_timers)
+        stop(old_timers);
+        delete(old_timers);
+    end
+
     % --- Initial state (captured by all nested callbacks via closure) ---
     state = radar_state();
 
@@ -315,6 +324,11 @@ function radar_gui()
     end
 
     function redraw()
+        % Bail quietly if the main figure has gone away (e.g. user closed
+        % the window or the timer fired during teardown).
+        if ~isvalid(fig) || ~isvalid(pax)
+            return;
+        end
         try
             state.tower_lat = twrLat.Value;
             state.tower_lon = twrLon.Value;
@@ -369,7 +383,9 @@ function radar_gui()
             bottomLbl.Text = sprintf('%d aircraft tracked  |  %s', ...
                 numel(keep), char(datetime('now','Format','HH:mm:ss')));
         catch ME
-            bottomLbl.Text = ['redraw error: ' ME.message];
+            if isvalid(bottomLbl)
+                bottomLbl.Text = ['redraw error: ' ME.message];
+            end
         end
     end
 
@@ -484,8 +500,6 @@ function radar_gui()
         fs_layout.RowSpacing  = 2;
         fs_layout.Padding     = [4 4 4 4];
         fs_layout.BackgroundColor = [0 0 0];
-
-        fs_fig.SizeChangedFcn = @(~,~) on_fs_resize();
 
         fsTop = uigridlayout(fs_layout, [1 8]);
         fsTop.Layout.Row = 1;
@@ -616,12 +630,6 @@ function radar_gui()
         end
     end
 
-    function on_fs_resize()
-        if ~isempty(fs_pax) && isvalid(fs_pax) ...
-                && ~isa(fs_pax, 'matlab.graphics.axis.PolarAxes')
-            apply_map_limits(fs_pax);
-        end
-    end
 
     function on_fs_close()
         if ~isempty(fs_fig) && isvalid(fs_fig)
