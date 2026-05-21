@@ -173,7 +173,6 @@ function radar_gui()
                           Callback=@on_message);
             end
             state.connected     = true;
-            state.tower_snapped = false;   % allow auto-snap on next msg
             statusDot.FontColor = [0.2 0.85 0.2];
             statusLbl.Text = 'connected';
             connectBtn.Text = 'Disconnect';
@@ -249,16 +248,6 @@ function radar_gui()
         payload.topic   = char(string(topic));
         state.aircraft(cs) = payload;
 
-        % Auto-snap tower to the first aircraft seen on this connection
-        if ~state.tower_snapped
-            state.tower_lat = payload.lat;
-            state.tower_lon = payload.lon;
-            twrLat.Value    = payload.lat;
-            twrLon.Value    = payload.lon;
-            state.tower_snapped = true;
-            statusLbl.Text = sprintf('tower snapped to %s', cs);
-        end
-
         if isKey(state.history, cs)
             h = state.history(cs);
         else
@@ -296,6 +285,9 @@ function radar_gui()
     end
 
     function on_snap_tower(~, ~)
+        % One-shot manual override: move the tower to wherever the
+        % currently-tracked aircraft is. Useful if you teleported to a
+        % new place and want to re-center the radar on it.
         ks = keys(state.aircraft);
         if isempty(ks)
             statusLbl.Text = 'no aircraft to snap to';
@@ -307,7 +299,6 @@ function radar_gui()
         state.tower_lon = ac.lon;
         twrLat.Value = ac.lat;
         twrLon.Value = ac.lon;
-        state.tower_snapped = true;
         % Drop history so the trail restarts from the new origin
         if isKey(state.history, cs)
             remove(state.history, cs);

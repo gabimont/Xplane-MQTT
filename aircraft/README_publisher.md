@@ -39,9 +39,10 @@ For each additional aircraft / PC:
 2. Open [`aircraft/start.m`](start.m) and **change `CALLSIGN`** to
    something unique — e.g. `'CESSNA02'`, `'GLIDER03'`. The topic
    becomes `radar/aircraft/<CALLSIGN>/state` automatically.
-3. (Optional) edit [`teleport_aircraft.m`](teleport_aircraft.m) on
-   that PC if you want a different initial heading / altitude / N-E
-   offset so the aircraft don't all spawn at the same point.
+3. **Edit [`teleport_aircraft.m`](teleport_aircraft.m)** on that PC
+   so `TargetLat / TargetLon` are different from the other PCs —
+   otherwise the aircraft all spawn on the same point and their blips
+   overlap.
 4. Press **Run (▶)**.
 
 The tower (`radar_gui` on the Mac) doesn't need any changes — its
@@ -79,13 +80,15 @@ Skip the teleport entirely if you want to fly manually from the runway
 ### Customizing the teleport
 
 Open [`teleport_aircraft.m`](teleport_aircraft.m) and edit the values
-inside the **"EDIT THESE VALUES"** block at the top:
+inside the **"EDIT THESE VALUES"** block at the top. Note that the
+target is **absolute lat/lon** — every call teleports to the same
+exact point, no compounding offsets:
 
 ```matlab
-% --- WHERE to put the aircraft (relative to runway position) ---
-OffsetNorthKm = 0;    % km north of current lat/lon (negative = south)
-OffsetEastKm  = 0;    % km east  of current lat/lon (negative = west)
-Altitude      = 100;  % m MSL
+% --- WHERE to put the aircraft (ABSOLUTE coordinates) ---
+TargetLat = 46.7738;     % degrees (+N / -S)
+TargetLon = -122.9831;   % degrees (+E / -W)
+Altitude  = 100;         % m MSL
 
 % --- HOW it should be flying ---
 Speed    = 15;        % m/s true airspeed
@@ -95,6 +98,11 @@ Throttle = 0.49;      % normalized [0, 1]
 Gear     = 1;         % 1=down (use for taildraggers/fixed gear),
                       % 0=up   (only for retractable-gear aircraft)
 ```
+
+Pick `TargetLat / TargetLon` near the tower's hardcoded position
+(see [`radar/radar_state.m`](../radar/radar_state.m)) so the aircraft
+shows up on the radar from the start. The default values place the
+aircraft about 10 km North of the default tower point.
 
 For higher/faster aircraft (jets, etc.), bump Altitude and Speed and
 set Gear=0. For the Piper or any fixed-gear plane keep Gear=1.

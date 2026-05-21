@@ -20,12 +20,14 @@ function state = radar_state()
     % Trail history: callsign -> struct('lat',[],'lon',[],'alt',[])
     state.history       = containers.Map('KeyType','char','ValueType','any');
 
-    % Tower position (configurable in GUI). Default near SBSP, but the
-    % GUI auto-snaps it to the first aircraft seen after each Connect
-    % unless the user has already moved it manually.
-    state.tower_lat     = -23.6273;
-    state.tower_lon     = -46.6566;
-    state.tower_snapped = false;     % true once tower has been pinned
+    % --- Tower position (HARDCODED) ---
+    % The radar plots aircraft positions relative to this fixed point.
+    % It does NOT change automatically when aircraft connect. Edit here
+    % (or in the GUI's Tower lat/lon fields) to use a different
+    % reference point. The "Snap" button still works for an explicit
+    % one-shot recenter to an aircraft if you ever want that.
+    state.tower_lat     = 46.6838;
+    state.tower_lon     = -122.9831;
 
     % Display
     state.max_range_km  = 25;     % polar axes RLim

@@ -20,8 +20,21 @@ In the window:
 1. Confirm or change broker / port → **Connect**. Indicator turns green.
 2. The default subscription `radar/aircraft/+/state` (wildcard) is already
    in the list; new aircraft appear automatically as they publish.
-3. Set tower lat/lon to your reference point so range/bearing are correct.
-4. Adjust Range (km) and Trail length to taste.
+3. Adjust Range (km) and Trail length to taste.
+
+## Tower position (fixed, hardcoded)
+
+The tower's lat/lon is **hardcoded** in [radar_state.m](radar_state.m)
+— the radar plots all aircraft as range/bearing from this point. The
+defaults place it near (46.6838, -122.9831). Edit either the file or
+the Tower lat/lon fields at the bottom of the GUI to use a different
+reference.
+
+The tower does **not** auto-snap to the first aircraft. If you do want
+to recenter on a specific aircraft at runtime (e.g. after teleporting
+to a new place), click the **Snap** button next to the lat/lon fields
+— that's a one-shot override that puts the tower on top of whichever
+aircraft is currently being tracked, and resets its trail.
 
 ## What you see
 
