@@ -34,12 +34,6 @@ You can also override the lat/lon at runtime by typing into the Tower
 lat/lon fields at the bottom-right of the GUI, but that's session-only
 and won't move the publisher's reference.
 
-The tower does **not** auto-snap to the first aircraft. If you do want
-to recenter on a specific aircraft at runtime (e.g. after teleporting
-to a new place), click the **Snap** button next to the lat/lon fields
-— that's a one-shot override that puts the tower on top of whichever
-aircraft is currently being tracked, and resets its trail.
-
 ## What you see
 
 - **PPI**: green polar plot, North up, clockwise bearing. Concentric labels

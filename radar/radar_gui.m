@@ -112,8 +112,8 @@ function radar_gui()
     acTable.RowName       = {};
     acTable.Data          = cell(0,6);
 
-    twrRow = uigridlayout(rightSide, [1 6]);
-    twrRow.ColumnWidth = {'fit', 90, 90, 'fit', 70, 70};
+    twrRow = uigridlayout(rightSide, [1 5]);
+    twrRow.ColumnWidth = {'fit', 90, 90, 'fit', 70};
     twrRow.ColumnSpacing = 6;
     uilabel(twrRow, 'Text', 'Tower lat/lon:');
     twrLat = uieditfield(twrRow, 'numeric', 'Value', state.tower_lat, ...
@@ -124,9 +124,6 @@ function radar_gui()
     maxRange = uieditfield(twrRow, 'numeric', 'Value', state.max_range_km, ...
                            'Limits', [1 500], ...
                            'ValueChangedFcn', @on_range_change);
-    uibutton(twrRow, 'Text', 'Snap', ...
-             'Tooltip', 'Pin tower lat/lon to the first known aircraft', ...
-             'ButtonPushedFcn', @on_snap_tower);
 
     trailRow = uigridlayout(rightSide, [1 4]);
     trailRow.ColumnWidth = {'fit', 60, 'fit', 60};
@@ -282,28 +279,6 @@ function radar_gui()
         if ~isempty(fs_range_field) && isvalid(fs_range_field)
             fs_range_field.Value = v;
         end
-    end
-
-    function on_snap_tower(~, ~)
-        % One-shot manual override: move the tower to wherever the
-        % currently-tracked aircraft is. Useful if you teleported to a
-        % new place and want to re-center the radar on it.
-        ks = keys(state.aircraft);
-        if isempty(ks)
-            statusLbl.Text = 'no aircraft to snap to';
-            return;
-        end
-        cs = ks{1};
-        ac = state.aircraft(cs);
-        state.tower_lat = ac.lat;
-        state.tower_lon = ac.lon;
-        twrLat.Value = ac.lat;
-        twrLon.Value = ac.lon;
-        % Drop history so the trail restarts from the new origin
-        if isKey(state.history, cs)
-            remove(state.history, cs);
-        end
-        statusLbl.Text = sprintf('tower snapped to %s', cs);
     end
 
     function set_trail(v)
@@ -506,10 +481,10 @@ function radar_gui()
         fs_layout.Padding     = [4 4 4 4];
         fs_layout.BackgroundColor = [0 0 0];
 
-        fsTop = uigridlayout(fs_layout, [1 8]);
+        fsTop = uigridlayout(fs_layout, [1 7]);
         fsTop.Layout.Row = 1;
         fsTop.Layout.Column = 1;
-        fsTop.ColumnWidth = {110, 80, 80, 110, '1x', 'fit', 100, 110};
+        fsTop.ColumnWidth = {110, 80, 80, 110, '1x', 'fit', 100};
         fsTop.ColumnSpacing = 8;
         uibutton(fsTop, 'Text', '< Close', ...
                  'ButtonPushedFcn', @(~,~) on_fs_close());
@@ -530,9 +505,6 @@ function radar_gui()
                                      'Value', state.max_range_km, ...
                                      'Limits', [1 1000], ...
                                      'ValueChangedFcn', @(s,~) set_range(s.Value));
-        uibutton(fsTop, 'Text', 'Snap', ...
-                 'Tooltip', 'Snap tower to first known aircraft', ...
-                 'ButtonPushedFcn', @(~,~) on_snap_tower());
 
         fs_mode = 'ppi';
         build_fs_axes();
