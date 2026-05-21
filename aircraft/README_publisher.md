@@ -23,7 +23,7 @@ With X-Plane open and the aircraft on a runway:
 addpath('aircraft');
 
 % 1) Put the aircraft in the air with initial velocity (no MQTT yet)
-teleport_aircraft();
+teleport_aircraft;
 
 % 2) Start broadcasting position to MQTT
 pub = start_publisher(Callsign='PIPER01');
@@ -40,18 +40,24 @@ doesn't stall.
 Skip the teleport entirely if you want to fly manually from the runway
 — just run `start_publisher` directly.
 
-### Custom teleport
+### Customizing the teleport
+
+Open [`teleport_aircraft.m`](teleport_aircraft.m) and edit the values
+inside the **"EDIT THESE VALUES"** block at the top:
 
 ```matlab
-teleport_aircraft( ...
-    OffsetNorthKm=10, OffsetEastKm=10, ...   % 14 km NE of spawn
-    Altitude=1500, ...                        % m MSL
-    Speed=70, ...                             % m/s
-    Heading=225, ...                          % deg true (SW)
-    Throttle=0.7);
+OffsetNorthKm = 5;        % km north of spawn (negative = south)
+OffsetEastKm  = 0;        % km east  of spawn (negative = west)
+Altitude      = 1000;     % m MSL
+Speed         = 50;       % m/s true airspeed
+Heading       = 90;       % deg true: 0=N, 90=E, 180=S, 270=W
+Throttle      = 0.6;      % [0, 1]
 ```
 
-You can also re-position mid-flight using an already-open XPC socket:
+Save and run `teleport_aircraft` again.
+
+If you want to re-position mid-flight using an already-open XPC socket,
+the helper `position_aircraft` still takes name-value pairs:
 ```matlab
 position_aircraft(pub.socket, OffsetNorthKm=20, Heading=180);
 ```

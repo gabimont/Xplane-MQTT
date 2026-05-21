@@ -1,28 +1,29 @@
-function teleport_aircraft(opts)
+function teleport_aircraft()
 %TELEPORT_AIRCRAFT Standalone: put the X-Plane aircraft in the air with
 %   an initial velocity, then disconnect. Run this BEFORE start_publisher
 %   so the aircraft is already flying when MQTT broadcasts start.
 %
-%   teleport_aircraft()                                  % defaults
-%   teleport_aircraft(OffsetNorthKm=10, Heading=270)     % custom
-%   teleport_aircraft(Altitude=1500, Speed=70)           % higher / faster
+%   Edit the values inside the "EDIT THESE VALUES" block below to
+%   change the teleport, then just call:
 %
-%   Defaults: 5 km North of current position, 1000 m AMSL, 50 m/s, heading
-%   90° (East), throttle 0.6. The throttle + velocity keep the aircraft
-%   flying so it doesn't stall and fall right after the teleport.
+%       >> teleport_aircraft
 %
-%   Opens its own XPC connection and closes it on exit; no MQTT involved.
+%   The throttle + velocity together keep the aircraft cruising so it
+%   does not stall and fall right after the teleport.
 
-    arguments
-        opts.XPCHost        (1,:) char    = '127.0.0.1'
-        opts.XPCPort        (1,1) double  = 49009
-        opts.OffsetNorthKm  (1,1) double  = 5
-        opts.OffsetEastKm   (1,1) double  = 0
-        opts.Altitude       (1,1) double  = 1000
-        opts.Speed          (1,1) double  = 50
-        opts.Heading        (1,1) double  = 90
-        opts.Throttle       (1,1) double  = 0.6
-    end
+    % ====================================================================
+    % EDIT THESE VALUES
+    % ====================================================================
+    XPCHost       = '127.0.0.1';     % X-Plane host (usually localhost)
+    XPCPort       = 49009;           % XPC plugin port
+
+    OffsetNorthKm = 5;               % km north of spawn (use negative for south)
+    OffsetEastKm  = 0;               % km east  of spawn (use negative for west)
+    Altitude      = 1000;            % m MSL
+    Speed         = 50;              % m/s true airspeed
+    Heading       = 90;              % deg true: 0=N, 90=E, 180=S, 270=W
+    Throttle      = 0.6;             % normalized [0, 1]
+    % ====================================================================
 
     % --- Paths ---
     here = fileparts(mfilename('fullpath'));
@@ -40,18 +41,18 @@ function teleport_aircraft(opts)
 
     import XPlaneConnect.*
 
-    fprintf('teleport_aircraft: opening XPC at %s:%d ...\n', opts.XPCHost, opts.XPCPort);
-    socket = openUDP(opts.XPCHost, opts.XPCPort);
+    fprintf('teleport_aircraft: opening XPC at %s:%d ...\n', XPCHost, XPCPort);
+    socket = openUDP(XPCHost, XPCPort);
 
     cleaner = onCleanup(@() closeUDP(socket));
 
     position_aircraft(socket, ...
-        OffsetNorthKm = opts.OffsetNorthKm, ...
-        OffsetEastKm  = opts.OffsetEastKm,  ...
-        Altitude      = opts.Altitude,      ...
-        Speed         = opts.Speed,         ...
-        Heading       = opts.Heading,       ...
-        Throttle      = opts.Throttle);
+        OffsetNorthKm = OffsetNorthKm, ...
+        OffsetEastKm  = OffsetEastKm,  ...
+        Altitude      = Altitude,      ...
+        Speed         = Speed,         ...
+        Heading       = Heading,       ...
+        Throttle      = Throttle);
 
     fprintf('teleport_aircraft: done. Now run start_publisher to broadcast MQTT.\n');
 end
