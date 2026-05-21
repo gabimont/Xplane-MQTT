@@ -48,7 +48,12 @@ Open [`teleport_aircraft.m`](teleport_aircraft.m) and edit the values
 inside the **"EDIT THESE VALUES"** block at the top:
 
 ```matlab
-Altitude = 100;       % m MSL
+% --- WHERE to put the aircraft (relative to runway position) ---
+OffsetNorthKm = 0;    % km north of current lat/lon (negative = south)
+OffsetEastKm  = 0;    % km east  of current lat/lon (negative = west)
+Altitude      = 100;  % m MSL
+
+% --- HOW it should be flying ---
 Speed    = 15;        % m/s true airspeed
 Heading  = 0;         % deg true: 0=N, 90=E, 180=S, 270=W
 Pitch    = -7;        % deg (nose down so it builds speed cleanly)
