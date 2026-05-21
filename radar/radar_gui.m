@@ -125,16 +125,20 @@ function radar_gui()
                            'Limits', [1 500], ...
                            'ValueChangedFcn', @on_range_change);
 
-    trailRow = uigridlayout(rightSide, [1 4]);
-    trailRow.ColumnWidth = {'fit', 60, 'fit', 60};
+    trailRow = uigridlayout(rightSide, [1 6]);
+    trailRow.ColumnWidth = {'fit', 60, 'fit', 60, 'fit', 60};
     uilabel(trailRow, 'Text', 'Trail length:');
     trailField = uieditfield(trailRow, 'numeric', 'Value', state.trail_len, ...
                               'Limits', [0 500], ...
                               'ValueChangedFcn', @(s,~) set_trail(s.Value));
     uilabel(trailRow, 'Text', 'Stale (s):');
     staleField = uieditfield(trailRow, 'numeric', 'Value', state.stale_sec, ...
-                              'Limits', [1 600], ...
+                              'Limits', [1 3600], ...
                               'ValueChangedFcn', @(s,~) set_stale(s.Value));
+    uilabel(trailRow, 'Text', 'Drop (s):');
+    dropField  = uieditfield(trailRow, 'numeric', 'Value', state.drop_sec, ...
+                              'Limits', [1 86400], ...
+                              'ValueChangedFcn', @(s,~) set_drop(s.Value));
 
     bottomRow = uigridlayout(main, [1 2]);
     bottomRow.ColumnWidth   = {'1x', 130};
@@ -289,6 +293,10 @@ function radar_gui()
         state.stale_sec = v;
     end
 
+    function set_drop(v)
+        state.drop_sec = v;
+    end
+
     function redraw()
         % Bail quietly if the main figure has gone away (e.g. user closed
         % the window or the timer fired during teardown).
@@ -370,7 +378,13 @@ function radar_gui()
             ac = state.aircraft(cs);
             [r_m, brg_rad] = ll2rb(state.tower_lat, state.tower_lon, ac.lat, ac.lon);
             isStale = any(strcmp(stale, cs));
-            if isStale, color = [0.6 0.6 0.6]; else, color = [0.2 1.0 0.4]; end
+            if isStale
+                color     = [0.6 0.6 0.6];
+                tip_color = [0.85 0.85 0.85];
+            else
+                color     = [0.2 1.0 0.4];
+                tip_color = [1 1 1];
+            end
 
             % Trail
             if isKey(state.history, cs)
@@ -388,6 +402,18 @@ function radar_gui()
                  'HorizontalAlignment','center', ...
                  'VerticalAlignment','middle', ...
                  'FontWeight','bold');
+
+            % Tip indicator — small bright dot in front of the triangle so
+            % "where it's pointing" is unambiguous.
+            tip_off_m = ax.RLim(2) * 0.018;
+            ac_x = r_m * sin(brg_rad);
+            ac_y = r_m * cos(brg_rad);
+            tip_x = ac_x + tip_off_m * sin(ac.hdg);
+            tip_y = ac_y + tip_off_m * cos(ac.hdg);
+            tip_r = sqrt(tip_x.^2 + tip_y.^2);
+            tip_theta = atan2(tip_x, tip_y);
+            polarscatter(ax, tip_theta, tip_r, 35, tip_color, 'filled');
+
             % Label (offset down-right so it doesn't sit on top of the blip)
             lbl = sprintf('  %s  %.0fm', cs, ac.alt);
             text(ax, brg_rad, r_m, lbl, 'FontSize', 9, ...
@@ -433,7 +459,13 @@ function radar_gui()
             x = r_km * sin(brg_rad);   % East (km)
             y = r_km * cos(brg_rad);   % North (km)
             isStale = any(strcmp(stale, cs));
-            if isStale, color = [0.6 0.6 0.6]; else, color = [0.2 1.0 0.4]; end
+            if isStale
+                color     = [0.6 0.6 0.6];
+                tip_color = [0.85 0.85 0.85];
+            else
+                color     = [0.2 1.0 0.4];
+                tip_color = [1 1 1];
+            end
 
             % Trail
             if isKey(state.history, cs)
@@ -452,6 +484,14 @@ function radar_gui()
                  'HorizontalAlignment','center', ...
                  'VerticalAlignment','middle', ...
                  'FontWeight','bold');
+
+            % Tip indicator — small bright dot in front of the triangle so
+            % "where it's pointing" is unambiguous.
+            tip_off_km = abs(diff(ax.XLim)) * 0.015;
+            tip_x = x + tip_off_km * sin(ac.hdg);
+            tip_y = y + tip_off_km * cos(ac.hdg);
+            scatter(ax, tip_x, tip_y, 35, tip_color, 'filled');
+
             % Label (offset down-right so it doesn't sit on top of the blip)
             text(ax, x, y, sprintf('  %s  %.0fm', cs, ac.alt), ...
                  'FontSize', 10, 'Color', color, ...
