@@ -109,10 +109,10 @@ function radar_gui()
     rightSide.RowSpacing = 6;
 
     acTable = uitable(rightSide);
-    acTable.ColumnName    = {'Callsign','Range (km)','Brg','Alt (m)','Hdg','Status'};
-    acTable.ColumnEditable = false(1,6);
+    acTable.ColumnName    = {'Callsign','Lat','Lon','Alt (m)','Hdg','Vt (m/s)','Ts'};
+    acTable.ColumnEditable = false(1,7);
     acTable.RowName       = {};
-    acTable.Data          = cell(0,6);
+    acTable.Data          = cell(0,7);
 
     rangeRow = uigridlayout(rightSide, [1 3]);
     rangeRow.ColumnWidth = {'fit', 90, '1x'};
@@ -308,19 +308,23 @@ function radar_gui()
                 end
             end
 
-            % Update the aircraft table (only lives in the main window)
-            rows = cell(numel(keep), 6);
+            % Update the aircraft table — columns mirror the payload fields
+            rows = cell(numel(keep), 7);
             for k = 1:numel(keep)
                 cs = keep{k};
                 ac = state.aircraft(cs);
-                [r_m, brg_rad] = ll2rb(state.tower_lat, state.tower_lon, ac.lat, ac.lon);
-                isStale = any(strcmp(stale, cs));
                 rows{k,1} = cs;
-                rows{k,2} = sprintf('%.2f',  r_m/1000);
-                rows{k,3} = sprintf('%03d',  round(mod(rad2deg(brg_rad),360)));
-                rows{k,4} = sprintf('%.0f',  ac.alt);
-                rows{k,5} = sprintf('%.0f',  mod(rad2deg(ac.hdg),360));
-                if isStale, rows{k,6} = 'STALE'; else, rows{k,6} = 'OK'; end
+                rows{k,2} = sprintf('%.4f', ac.lat);
+                rows{k,3} = sprintf('%.4f', ac.lon);
+                rows{k,4} = sprintf('%.0f', ac.alt);
+                rows{k,5} = sprintf('%.2f', ac.hdg);          % radians, as published
+                if isfield(ac, 'vt'),  rows{k,6} = sprintf('%.1f', ac.vt); else, rows{k,6} = '-'; end
+                if isfield(ac, 'ts')
+                    rows{k,7} = char(datetime(ac.ts, 'ConvertFrom', 'posixtime', ...
+                                              'Format', 'HH:mm:ss'));
+                else
+                    rows{k,7} = '-';
+                end
             end
             acTable.Data = rows;
 
