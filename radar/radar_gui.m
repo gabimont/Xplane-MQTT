@@ -24,6 +24,11 @@ function radar_gui()
     % --- Initial state (captured by all nested callbacks via closure) ---
     state = radar_state();
 
+    % Handles to the optional fullscreen PPI (created lazily on demand)
+    fs_fig         = [];
+    fs_pax         = [];
+    fs_range_field = [];
+
     % ============================  UI  ============================
     fig = uifigure('Name', 'X-Plane Radar (MQTT)', 'Position', [80 80 1280 780]);
     fig.CloseRequestFcn = @on_close;
@@ -121,7 +126,14 @@ function radar_gui()
                               'Limits', [1 600], ...
                               'ValueChangedFcn', @(s,~) set_stale(s.Value));
 
-    bottomLbl = uilabel(main, 'Text', 'idle', 'FontColor', [0.4 0.4 0.4]);
+    bottomRow = uigridlayout(main, [1 2]);
+    bottomRow.ColumnWidth   = {'1x', 130};
+    bottomRow.ColumnSpacing = 8;
+    bottomRow.Padding       = [0 0 0 0];
+    bottomLbl = uilabel(bottomRow, 'Text', 'idle', 'FontColor', [0.4 0.4 0.4]);
+    uibutton(bottomRow, 'Text', 'Open Fullscreen', ...
+             'Tooltip', 'Open the PPI in a separate fullscreen window', ...
+             'ButtonPushedFcn', @on_fullscreen);
 
     % ---- Redraw timer (10 Hz) ----
     redrawT = timer('Name', 'radar_redraw', 'Period', 0.1, ...
@@ -251,8 +263,19 @@ function radar_gui()
     end
 
     function on_range_change(~, ~)
-        state.max_range_km = maxRange.Value;
-        pax.RLim = [0 state.max_range_km*1000];
+        set_range(maxRange.Value);
+    end
+
+    function set_range(v)
+        state.max_range_km = v;
+        maxRange.Value     = v;
+        pax.RLim           = [0 v*1000];
+        if ~isempty(fs_pax) && isvalid(fs_pax)
+            fs_pax.RLim = [0 v*1000];
+        end
+        if ~isempty(fs_range_field) && isvalid(fs_range_field)
+            fs_range_field.Value = v;
+        end
     end
 
     function on_snap_tower(~, ~)
@@ -307,41 +330,20 @@ function radar_gui()
                 end
             end
 
-            cla(pax);
-            pax.RTick      = linspace(0, state.max_range_km*1000, 6);
-            pax.RTickLabel = arrayfun(@(r) sprintf('%.0f km', r/1000), ...
-                                      pax.RTick, 'UniformOutput', false);
-            pax.ThetaTick      = 0:30:330;
-            pax.ThetaTickLabel = arrayfun(@(t) sprintf('%03d', t), ...
-                                          pax.ThetaTick, 'UniformOutput', false);
+            % Render to the main PPI ...
+            render_ppi(pax, keep, stale);
+            % ... and to the fullscreen PPI if it's open.
+            if ~isempty(fs_pax) && isvalid(fs_pax)
+                render_ppi(fs_pax, keep, stale);
+            end
 
+            % Update the aircraft table (only lives in the main window)
             rows = cell(numel(keep), 6);
             for k = 1:numel(keep)
                 cs = keep{k};
                 ac = state.aircraft(cs);
                 [r_m, brg_rad] = ll2rb(state.tower_lat, state.tower_lon, ac.lat, ac.lon);
                 isStale = any(strcmp(stale, cs));
-                if isStale, color = [0.6 0.6 0.6]; else, color = [0.2 1.0 0.4]; end
-
-                % Trail
-                if isKey(state.history, cs)
-                    h = state.history(cs);
-                    if numel(h.lat) >= 2
-                        [rT, brgT] = ll2rb(state.tower_lat, state.tower_lon, h.lat, h.lon);
-                        polarplot(pax, brgT, rT, '-', 'Color', color, 'LineWidth', 1);
-                    end
-                end
-
-                % Blip
-                polarscatter(pax, brg_rad, r_m, 110, color, 'filled', ...
-                             'Marker', '^', 'MarkerEdgeColor', 'w');
-
-                % Label
-                lbl = sprintf('  %s  %.0fm', cs, ac.alt);
-                text(pax, brg_rad, r_m, lbl, 'FontSize', 9, ...
-                     'Color', color, 'VerticalAlignment','bottom', ...
-                     'FontWeight','bold');
-
                 rows{k,1} = cs;
                 rows{k,2} = sprintf('%.2f',  r_m/1000);
                 rows{k,3} = sprintf('%03d',  round(mod(rad2deg(brg_rad),360)));
@@ -358,9 +360,113 @@ function radar_gui()
         end
     end
 
+    function render_ppi(ax, keep, stale)
+        % Draw all aircraft blips and trails into one polaraxes.
+        cla(ax);
+        ax.RTick      = linspace(0, state.max_range_km*1000, 6);
+        ax.RTickLabel = arrayfun(@(r) sprintf('%.0f km', r/1000), ...
+                                  ax.RTick, 'UniformOutput', false);
+        ax.ThetaTick      = 0:30:330;
+        ax.ThetaTickLabel = arrayfun(@(t) sprintf('%03d', t), ...
+                                      ax.ThetaTick, 'UniformOutput', false);
+
+        for k = 1:numel(keep)
+            cs = keep{k};
+            ac = state.aircraft(cs);
+            [r_m, brg_rad] = ll2rb(state.tower_lat, state.tower_lon, ac.lat, ac.lon);
+            isStale = any(strcmp(stale, cs));
+            if isStale, color = [0.6 0.6 0.6]; else, color = [0.2 1.0 0.4]; end
+
+            % Trail
+            if isKey(state.history, cs)
+                h = state.history(cs);
+                if numel(h.lat) >= 2
+                    [rT, brgT] = ll2rb(state.tower_lat, state.tower_lon, h.lat, h.lon);
+                    polarplot(ax, brgT, rT, '-', 'Color', color, 'LineWidth', 1);
+                end
+            end
+
+            % Blip + label
+            polarscatter(ax, brg_rad, r_m, 110, color, 'filled', ...
+                         'Marker', '^', 'MarkerEdgeColor', 'w');
+            lbl = sprintf('  %s  %.0fm', cs, ac.alt);
+            text(ax, brg_rad, r_m, lbl, 'FontSize', 9, ...
+                 'Color', color, 'VerticalAlignment','bottom', ...
+                 'FontWeight','bold');
+        end
+    end
+
+    function on_fullscreen(~, ~)
+        if ~isempty(fs_fig) && isvalid(fs_fig)
+            figure(fs_fig);     % already open — bring to front
+            return;
+        end
+        fs_fig = uifigure('Name', 'X-Plane Radar — PPI', ...
+                          'Color', [0 0 0], ...
+                          'WindowState', 'fullscreen');
+        fs_fig.CloseRequestFcn = @(~,~) on_fs_close();
+
+        fsLayout = uigridlayout(fs_fig, [2 1]);
+        fsLayout.RowHeight   = {44, '1x'};
+        fsLayout.RowSpacing  = 4;
+        fsLayout.Padding     = [10 10 10 10];
+        fsLayout.BackgroundColor = [0 0 0];
+
+        fsTop = uigridlayout(fsLayout, [1 7]);
+        fsTop.ColumnWidth = {110, 80, 80, '1x', 'fit', 100, 110};
+        fsTop.ColumnSpacing = 8;
+        uibutton(fsTop, 'Text', '< Close', ...
+                 'ButtonPushedFcn', @(~,~) on_fs_close());
+        uibutton(fsTop, 'Text', 'Zoom +', ...
+                 'Tooltip', 'Tighten the range (zoom in)', ...
+                 'ButtonPushedFcn', @(~,~) zoom_fs(0.5));
+        uibutton(fsTop, 'Text', 'Zoom -', ...
+                 'Tooltip', 'Loosen the range (zoom out)', ...
+                 'ButtonPushedFcn', @(~,~) zoom_fs(2.0));
+        uilabel(fsTop, 'Text', 'X-Plane Radar — PPI', ...
+                'FontSize', 20, 'FontColor', [0.6 0.9 0.6], ...
+                'HorizontalAlignment', 'center');
+        uilabel(fsTop, 'Text', 'Range (km):', 'FontColor', [0.6 0.9 0.6]);
+        fs_range_field = uieditfield(fsTop, 'numeric', ...
+                                     'Value', state.max_range_km, ...
+                                     'Limits', [1 1000], ...
+                                     'ValueChangedFcn', @(s,~) set_range(s.Value));
+        uibutton(fsTop, 'Text', 'Snap', ...
+                 'Tooltip', 'Snap tower to first known aircraft', ...
+                 'ButtonPushedFcn', @(~,~) on_snap_tower());
+
+        fs_pax = polaraxes(fsLayout);
+        fs_pax.ThetaZeroLocation = 'top';
+        fs_pax.ThetaDir          = 'clockwise';
+        fs_pax.RLim              = [0 state.max_range_km*1000];
+        fs_pax.GridColor         = [0.3 0.7 0.3];
+        fs_pax.GridAlpha         = 0.45;
+        fs_pax.Color             = [0.03 0.08 0.03];
+        fs_pax.RColor            = [0.6 0.95 0.6];
+        fs_pax.ThetaColor        = [0.6 0.95 0.6];
+        fs_pax.FontSize          = 14;
+        hold(fs_pax, 'on');
+    end
+
+    function on_fs_close()
+        if ~isempty(fs_fig) && isvalid(fs_fig)
+            delete(fs_fig);
+        end
+        fs_fig         = [];
+        fs_pax         = [];
+        fs_range_field = [];
+    end
+
+    function zoom_fs(factor)
+        if isempty(fs_pax) || ~isvalid(fs_pax), return; end
+        new_max = max(1, fs_pax.RLim(2) * factor / 1000);
+        set_range(new_max);
+    end
+
     function on_close(~, ~)
-        try, stop(redrawT); delete(redrawT); catch, end
-        try, disconnect();                    catch, end
+        try stop(redrawT); delete(redrawT); catch; end
+        try disconnect();                   catch; end
+        try on_fs_close();                  catch; end
         delete(fig);
     end
 end
