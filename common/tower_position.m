@@ -9,6 +9,6 @@ function [lat, lon] = tower_position()
 %     lat : degrees, +N / -S
 %     lon : degrees, +E / -W
 
-    lat = 46.6838;
-    lon = -122.9831;
+    lat = 46.8248;
+    lon = -123.0380;
 end

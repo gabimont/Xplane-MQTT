@@ -22,8 +22,10 @@ function teleport_aircraft()
     % --- WHERE to put the aircraft (offset in METERS from the tower) ---
     % The tower lat/lon lives in common/tower_position.m (single source
     % of truth, shared with the radar). Positive offsets: North / East.
-    % Negative: South / West.
-    OffsetNorthM = 10000;        % m  (+N / -S). 10000 = 10 km north of tower
+    % Negative: South / West. Default is (0, 0) — same lat/lon as the
+    % tower so the teleport lands on already-loaded scenery (the
+    % aircraft is just lifted up and given cruise velocity).
+    OffsetNorthM = 0;            % m  (+N / -S). 10000 = 10 km north of tower
     OffsetEastM  = 0;            % m  (+E / -W)
     Altitude     = 100;          % m MSL (absolute, NOT relative to tower)
 
