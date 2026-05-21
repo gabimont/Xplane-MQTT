@@ -15,9 +15,22 @@ represents one aircraft.
   this repo and the `+XPlaneConnect` folder is empty, grab it from
   [nasa/XPlaneConnect](https://github.com/nasa/XPlaneConnect) and drop it in.
 
-## Quick start (two steps)
+## Quick start — just press Run (▶)
 
 With X-Plane open and the aircraft on a runway:
+
+1. Open [`aircraft/start.m`](start.m) in the MATLAB editor
+2. (Optional) edit `CALLSIGN` at the top if you want a different name
+3. Press **Run (▶)** in the MATLAB toolbar (or F5)
+4. To stop, open [`aircraft/stop.m`](stop.m) and press **Run**
+
+`start.m` does the path setup, teleports the aircraft up (via
+`teleport_aircraft`), starts the MQTT publisher, and stashes the
+handle so `stop.m` can find it later.
+
+## Quick start (manual, two commands)
+
+If you prefer the command window:
 
 ```matlab
 addpath('aircraft');
