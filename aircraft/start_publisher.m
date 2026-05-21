@@ -13,12 +13,25 @@ function pub = start_publisher(opts)
 %     - Industrial Communication Toolbox (mqttclient)
 
     arguments
-        opts.Broker    (1,:) char    = 'tcp://broker.emqx.io'
-        opts.Port      (1,1) double  = 1883
-        opts.Callsign  (1,:) char    = 'PIPER01'
-        opts.RateHz    (1,1) double  = 5
-        opts.XPCHost   (1,:) char    = '127.0.0.1'
-        opts.XPCPort   (1,1) double  = 49009
+        opts.Broker         (1,:) char    = 'tcp://broker.emqx.io'
+        opts.Port           (1,1) double  = 1883
+        opts.Callsign       (1,:) char    = 'PIPER01'
+        opts.RateHz         (1,1) double  = 5
+        opts.XPCHost        (1,:) char    = '127.0.0.1'
+        opts.XPCPort        (1,1) double  = 49009
+
+        % --- Optional initial teleport + velocity (default ON) ---
+        % After publishing one snap message at the spawn position (so the
+        % tower can auto-snap there), teleport the aircraft to spawn +
+        % offset and give it initial velocity along the heading vector.
+        % Set Teleport=false to disable and start flying manually instead.
+        opts.Teleport       (1,1) logical = true
+        opts.OffsetNorthKm  (1,1) double  = 5
+        opts.OffsetEastKm   (1,1) double  = 0
+        opts.InitialAlt     (1,1) double  = 1000   % m MSL
+        opts.InitialSpeed   (1,1) double  = 50     % m/s
+        opts.InitialHeading (1,1) double  = 90     % deg true (0=N, 90=E)
+        opts.InitialThrottle (1,1) double = 0.6
     end
 
     % --- Paths ---
@@ -55,6 +68,23 @@ function pub = start_publisher(opts)
         'topic',    topic, ...
         'socket',   socket, ...
         'mqtt',     mqtt);
+
+    % --- Snap message at spawn position so the tower can auto-snap there ---
+    % Send one publish BEFORE teleporting; gives the tower (if already
+    % connected) ~0.5s to receive and snap to the runway position.
+    publish_aircraft(state);
+    pause(0.5);
+
+    % --- Optional teleport + initial velocity ---
+    if opts.Teleport
+        position_aircraft(socket, ...
+            OffsetNorthKm = opts.OffsetNorthKm, ...
+            OffsetEastKm  = opts.OffsetEastKm, ...
+            Altitude      = opts.InitialAlt, ...
+            Speed         = opts.InitialSpeed, ...
+            Heading       = opts.InitialHeading, ...
+            Throttle      = opts.InitialThrottle);
+    end
 
     % --- Timer ---
     T = timer( ...

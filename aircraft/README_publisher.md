@@ -24,13 +24,39 @@ pub = start_publisher();             % defaults: PIPER01 @ 5 Hz to broker.emqx.i
 stop_publisher(pub);
 ```
 
+By default, `start_publisher` will:
+1. Publish one snap message at the current spawn position (so the radar
+   tower auto-snaps to the runway).
+2. Teleport the aircraft 5 km North of the spawn point, at 1000 m AMSL,
+   50 m/s, heading 90° (East), throttle 0.6.
+3. Start publishing at 5 Hz.
+
+The aircraft then appears on the PPI at ~5 km N, moving East — so you
+can actually see it move from the start instead of having to fly it
+manually out of the tower position.
+
 Override defaults:
 ```matlab
+% Disable teleport, just fly manually
+pub = start_publisher(Teleport=false);
+
+% Custom initial position / motion
 pub = start_publisher( ...
     Callsign='CESSNA02', ...
-    RateHz=10, ...
-    Broker='tcp://broker.hivemq.com', ...
-    Port=1883);
+    OffsetNorthKm=10, OffsetEastKm=10, ...   % 14 km NE of spawn
+    InitialAlt=1500, ...                      % m MSL
+    InitialSpeed=70, ...                      % m/s
+    InitialHeading=225, ...                   % deg true (SW)
+    InitialThrottle=0.7);
+
+% Different broker
+pub = start_publisher( ...
+    Broker='tcp://broker.hivemq.com', Port=1883);
+```
+
+You can also call the teleport helper manually mid-flight:
+```matlab
+position_aircraft(pub.socket, OffsetNorthKm=20, Heading=180);
 ```
 
 ## Published payload
