@@ -69,12 +69,14 @@ function radar_gui()
 
     % ---- Subscriptions panel ----
     subsPanel = uigridlayout(main, [2 1]);
-    subsPanel.RowHeight = {30, '1x'};
+    subsPanel.RowHeight = {40, '1x'};
     subsPanel.RowSpacing = 4;
+    subsPanel.Padding = [0 0 0 0];
 
     subRow = uigridlayout(subsPanel, [1 4]);
     subRow.ColumnWidth = {60, '1x', 110, 130};
     subRow.ColumnSpacing = 8;
+    subRow.Padding = [0 0 0 0];
     uilabel(subRow, 'Text', 'Topic:');
     topicField = uieditfield(subRow, 'text', 'Value', 'radar/aircraft/+/state');
     addBtn     = uibutton(subRow, 'Text', 'Subscribe',  'ButtonPushedFcn', @on_add_topic); %#ok<NASGU>
@@ -115,6 +117,7 @@ function radar_gui()
     rangeRow = uigridlayout(rightSide, [1 3]);
     rangeRow.ColumnWidth = {'fit', 90, '1x'};
     rangeRow.ColumnSpacing = 8;
+    rangeRow.Padding = [0 0 0 0];
     uilabel(rangeRow, 'Text', 'Range (km):');
     maxRange = uieditfield(rangeRow, 'numeric', 'Value', state.max_range_km, ...
                            'Limits', [1 500], ...
