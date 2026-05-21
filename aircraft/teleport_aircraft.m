@@ -20,9 +20,12 @@ function teleport_aircraft()
     XPCPort   = 49009;           % XPC plugin port
 
     % --- WHERE to put the aircraft (ABSOLUTE coordinates) ---
-    % These should be near the tower position configured in
-    % radar/radar_state.m so the aircraft shows up on the radar.
-    % Default below is ~10 km North of the default tower.
+    % These should be near the tower position so the aircraft shows up
+    % on the radar. Default below is ~10 km North of the default tower.
+    %
+    %   Tower lat/lon (from radar/radar_state.m): 46.6838, -122.9831
+    %   ⇒ keep TargetLat / TargetLon within a few tenths of a degree of
+    %     those values (1° lat ≈ 111 km).
     TargetLat = 46.7738;         % degrees  (+N / -S)
     TargetLon = -122.9831;       % degrees  (+E / -W)
     Altitude  = 100;             % m MSL
