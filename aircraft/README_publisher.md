@@ -33,9 +33,11 @@ pub = start_publisher(Callsign='PIPER01');
 stop_publisher(pub);
 ```
 
-Default teleport: 5 km North of current position, 1000 m AMSL, 50 m/s,
-heading 90° (East), throttle 0.6. Enough velocity + throttle so it
-doesn't stall.
+Default teleport (tuned for the Piper J-3 Cub, like the existing
+`posicionar_xplane.m`): lifts the aircraft to **100 m** at its current
+lat/lon, **15 m/s** heading **North**, nose **-7°**, gear **down**,
+throttle **0.49**. Enough velocity + throttle so the Piper doesn't
+stall.
 
 Skip the teleport entirely if you want to fly manually from the runway
 — just run `start_publisher` directly.
@@ -46,21 +48,20 @@ Open [`teleport_aircraft.m`](teleport_aircraft.m) and edit the values
 inside the **"EDIT THESE VALUES"** block at the top:
 
 ```matlab
-OffsetNorthKm = 5;        % km north of spawn (negative = south)
-OffsetEastKm  = 0;        % km east  of spawn (negative = west)
-Altitude      = 1000;     % m MSL
-Speed         = 50;       % m/s true airspeed
-Heading       = 90;       % deg true: 0=N, 90=E, 180=S, 270=W
-Throttle      = 0.6;      % [0, 1]
+Altitude = 100;       % m MSL
+Speed    = 15;        % m/s true airspeed
+Heading  = 0;         % deg true: 0=N, 90=E, 180=S, 270=W
+Pitch    = -7;        % deg (nose down so it builds speed cleanly)
+Throttle = 0.49;      % normalized [0, 1]
+Gear     = 1;         % 1=down (use for taildraggers/fixed gear),
+                      % 0=up   (only for retractable-gear aircraft)
 ```
 
-Save and run `teleport_aircraft` again.
+For higher/faster aircraft (jets, etc.), bump Altitude and Speed and
+set Gear=0. For the Piper or any fixed-gear plane keep Gear=1.
 
-If you want to re-position mid-flight using an already-open XPC socket,
-the helper `position_aircraft` still takes name-value pairs:
-```matlab
-position_aircraft(pub.socket, OffsetNorthKm=20, Heading=180);
-```
+Save and run `teleport_aircraft` again. The aircraft will be put in
+the air, and **`start_publisher` afterwards** publishes MQTT.
 
 ### Custom broker / callsign / rate
 
