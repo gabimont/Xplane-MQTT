@@ -6,7 +6,7 @@ function radar_gui()
 %     >> radar_gui
 %
 %   Workflow:
-%     1. Set broker host/port (default test.mosquitto.org:1883), click Connect.
+%     1. Set broker host/port (default broker.emqx.io:1883), click Connect.
 %     2. Subscriptions default to 'radar/aircraft/+/state' (wildcard) — any
 %        aircraft publishing under that prefix will be auto-discovered.
 %     3. Set tower lat/lon so range/bearing are measured from your reference
@@ -139,10 +139,10 @@ function radar_gui()
             statusLbl.Text = 'connecting...';
             drawnow;
             state.client = mqttclient(state.broker, Port=state.port);
-            state.client.MessageReceivedFcn = @on_message;
             % Subscribe to whatever is already in the list
             for k = 1:numel(state.subscriptions)
-                subscribe(state.client, state.subscriptions{k});
+                subscribe(state.client, state.subscriptions{k}, ...
+                          Callback=@on_message);
             end
             state.connected = true;
             statusDot.FontColor = [0.2 0.85 0.2];
@@ -182,7 +182,7 @@ function radar_gui()
         subsList.Items = state.subscriptions;
         if state.connected
             try
-                subscribe(state.client, t);
+                subscribe(state.client, t, Callback=@on_message);
             catch ME
                 statusLbl.Text = ['subscribe error: ' ME.message];
             end
@@ -204,13 +204,11 @@ function radar_gui()
         subsList.Items = state.subscriptions;
     end
 
-    function on_message(~, msg)
-        % msg is a table-like struct from mqttclient: .Topic, .Data, ...
+    function on_message(topic, data)
+        % Industrial Communication Toolbox callback signature: (topic, data).
+        % `topic` is a string scalar; `data` is a string (text payload).
         try
-            data = msg.Data;
-            if iscell(data),  data = data{1}; end
-            if ~ischar(data), data = char(data); end
-            payload = jsondecode(data);
+            payload = jsondecode(char(data));
         catch
             return;     % bad payload, drop silently
         end
@@ -219,11 +217,7 @@ function radar_gui()
         end
         cs = char(payload.callsign);
         payload.last_rx = posixtime(datetime('now'));
-        if iscell(msg.Topic)
-            payload.topic = char(msg.Topic{1});
-        else
-            payload.topic = char(msg.Topic);
-        end
+        payload.topic   = char(string(topic));
         state.aircraft(cs) = payload;
 
         if isKey(state.history, cs)

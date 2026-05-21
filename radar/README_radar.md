@@ -7,7 +7,7 @@ and displays them as blips on a PPI-style polar radar.
 
 - MATLAB R2022a+ with **Industrial Communication Toolbox** (`mqttclient`).
 - No Mapping Toolbox needed (range/bearing computed in `ll2rb.m`).
-- Network access to the broker (default `test.mosquitto.org:1883`).
+- Network access to the broker (default `broker.emqx.io:1883`).
 
 ## Quick start
 
@@ -46,7 +46,7 @@ want to subscribe to a specific aircraft or to an entirely different prefix:
 
 If you have the mosquitto CLI:
 ```bash
-mosquitto_pub -h test.mosquitto.org -t 'radar/aircraft/FAKE01/state' \
+mosquitto_pub -h broker.emqx.io -t 'radar/aircraft/FAKE01/state' \
   -m '{"callsign":"FAKE01","lat":-23.5,"lon":-46.6,"alt":300,"hdg":1.57,"vt":50,"ts":0}'
 ```
 

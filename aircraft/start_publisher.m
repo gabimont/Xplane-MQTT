@@ -13,7 +13,7 @@ function pub = start_publisher(opts)
 %     - Industrial Communication Toolbox (mqttclient)
 
     arguments
-        opts.Broker    (1,:) char    = 'tcp://test.mosquitto.org'
+        opts.Broker    (1,:) char    = 'tcp://broker.emqx.io'
         opts.Port      (1,1) double  = 1883
         opts.Callsign  (1,:) char    = 'PIPER01'
         opts.RateHz    (1,1) double  = 5

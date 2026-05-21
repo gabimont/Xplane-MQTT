@@ -19,7 +19,7 @@ represents one aircraft.
 
 ```matlab
 addpath('aircraft');
-pub = start_publisher();             % defaults: PIPER01 @ 5 Hz to test.mosquitto.org
+pub = start_publisher();             % defaults: PIPER01 @ 5 Hz to broker.emqx.io
 % ... fly in X-Plane ...
 stop_publisher(pub);
 ```
@@ -62,7 +62,7 @@ Topic: `radar/aircraft/<CALLSIGN>/state` (callsign uppercased).
 
 If you have the mosquitto CLI:
 ```bash
-mosquitto_sub -h test.mosquitto.org -t 'radar/aircraft/+/state' -v
+mosquitto_sub -h broker.emqx.io -t 'radar/aircraft/+/state' -v
 ```
 
 Each publish should print:

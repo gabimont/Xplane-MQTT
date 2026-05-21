@@ -40,7 +40,7 @@ Xplane-MQTT/
 
 - **Mac (torre)**: `addpath('radar'); radar_gui`
 - **Windows (aeronave, com X-Plane aberto)**: `addpath('aircraft'); pub = start_publisher(Callsign='PIPER01');`
-- Broker default: `tcp://test.mosquitto.org:1883` (público, sem credenciais).
+- Broker default: `tcp://broker.emqx.io:1883` (público, sem credenciais; test.mosquitto.org saía do ar com frequência).
 - Tópico: `radar/aircraft/<CALLSIGN>/state`, payload JSON `{lat, lon, alt, hdg, vt, ts, callsign}`.
 
 Para o autopiloto Simulink → segue inalterado, instruções abaixo.

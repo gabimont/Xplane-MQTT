@@ -6,7 +6,7 @@ function state = radar_state()
     state = struct();
 
     % Broker
-    state.broker        = 'tcp://test.mosquitto.org';
+    state.broker        = 'tcp://broker.emqx.io';
     state.port          = 1883;
     state.connected     = false;
     state.client        = [];
