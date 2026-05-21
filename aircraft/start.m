@@ -1,8 +1,11 @@
 % start.m  —  Click Run (▶) in MATLAB to put the X-Plane aircraft in the
 %              air and begin publishing its position to MQTT.
 %
-%   When the small dialog window pops up, the publisher is running.
-%   Close the dialog (X button) to stop the publisher cleanly.
+%   The script blocks on a wait loop after starting the publisher, so
+%   the MATLAB Stop button (red square ■, next to Run in the toolbar)
+%   stays active. Click it (or press Ctrl+C in the command window) to
+%   stop the publisher cleanly — `onCleanup` runs `stop_publisher`
+%   automatically.
 %
 %   What to edit:
 %     - Callsign / broker / rate           → block below in this file
@@ -18,50 +21,64 @@ PORT     = 1883;
 RATE_HZ  = 5;
 % ====================================================================
 
-% --- Path setup ---
-here = fileparts(mfilename('fullpath'));
-addpath(here);                                 % aircraft/
-addpath(fullfile(here, '..', 'common'));       % common/
+publisher_loop(CALLSIGN, BROKER, PORT, RATE_HZ);
 
-% --- If a previous publisher is still alive, stop it cleanly first ---
-prev = getappdata(0, 'xplane_mqtt_pub');
-if ~isempty(prev) && isstruct(prev)
-    fprintf('start: previous publisher found — stopping it first...\n');
+
+% ============================  local functions  ============================
+
+function publisher_loop(cs, broker, port, rate_hz)
+    % --- Path setup ---
+    here = fileparts(mfilename('fullpath'));
+    addpath(here);                              % aircraft/
+    addpath(fullfile(here, '..', 'common'));    % common/
+
+    % --- Stop any previous publisher cleanly ---
+    prev = getappdata(0, 'xplane_mqtt_pub');
+    if ~isempty(prev) && isstruct(prev)
+        fprintf('start: previous publisher found — stopping it first...\n');
+        try
+            stop_publisher(prev);
+        catch
+        end
+        setappdata(0, 'xplane_mqtt_pub', []);
+    end
+
+    % --- 1) Teleport the aircraft into the air ---
+    teleport_aircraft;
+
+    % --- 2) Start the MQTT publisher ---
+    pub = start_publisher( ...
+        Callsign = cs, ...
+        Broker   = broker, ...
+        Port     = port, ...
+        RateHz   = rate_hz);
+    setappdata(0, 'xplane_mqtt_pub', pub);
+
+    % onCleanup fires when the function exits — by normal return,
+    % unhandled error, or Stop / Ctrl+C interrupt.
+    cleaner = onCleanup(@() try_stop(pub));
+
+    fprintf(['\n>>> Publisher running.\n' ...
+             '>>> Click STOP (red square ■) in the MATLAB toolbar ' ...
+             'to stop.\n\n']);
+
+    % Block here until interrupted. pause(1) yields to the event
+    % queue so the publisher timer (5 Hz default) keeps firing.
     try
-        stop_publisher(prev);
+        while true
+            pause(1);
+        end
+    catch
+        % Caught Ctrl+C / Stop button — cleanup runs after this.
+    end
+end
+
+function try_stop(pub)
+    fprintf('\nstop: shutting down publisher...\n');
+    try
+        stop_publisher(pub);
     catch
     end
     setappdata(0, 'xplane_mqtt_pub', []);
+    fprintf('stop: done.\n');
 end
-
-% --- 1) Teleport the aircraft into the air ---
-teleport_aircraft;
-
-% --- 2) Start the MQTT publisher ---
-pub = start_publisher( ...
-    Callsign = CALLSIGN, ...
-    Broker   = BROKER, ...
-    Port     = PORT, ...
-    RateHz   = RATE_HZ);
-setappdata(0, 'xplane_mqtt_pub', pub);
-
-% --- Block here until the user closes the dialog ---
-msg = sprintf([ ...
-    'Publishing aircraft state to MQTT.\n\n' ...
-    'Callsign : %s\n' ...
-    'Topic    : %s\n' ...
-    'Broker   : %s:%d\n' ...
-    'Rate     : %g Hz\n\n' ...
-    'Close this window (or click OK) to STOP the publisher.'], ...
-    pub.callsign, pub.topic, BROKER, PORT, RATE_HZ);
-uiwait(msgbox(msg, 'X-Plane MQTT Publisher', 'modal'));
-
-% --- User closed the dialog: shut down ---
-fprintf('\nstop: shutting down publisher...\n');
-try
-    stop_publisher(pub);
-catch ME
-    warning('start:StopFailed', '%s', ME.message);
-end
-setappdata(0, 'xplane_mqtt_pub', []);
-fprintf('stop: done.\n');
