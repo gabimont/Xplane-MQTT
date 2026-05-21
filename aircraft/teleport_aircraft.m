@@ -19,16 +19,13 @@ function teleport_aircraft()
     XPCHost   = '127.0.0.1';     % X-Plane host (usually localhost)
     XPCPort   = 49009;           % XPC plugin port
 
-    % --- WHERE to put the aircraft (ABSOLUTE coordinates) ---
-    % These should be near the tower position so the aircraft shows up
-    % on the radar. Default below is ~10 km North of the default tower.
-    %
-    %   Tower lat/lon (from radar/radar_state.m): 46.6838, -122.9831
-    %   ⇒ keep TargetLat / TargetLon within a few tenths of a degree of
-    %     those values (1° lat ≈ 111 km).
-    TargetLat = 46.7738;         % degrees  (+N / -S)
-    TargetLon = -122.9831;       % degrees  (+E / -W)
-    Altitude  = 100;             % m MSL
+    % --- WHERE to put the aircraft (offset in METERS from the tower) ---
+    % The tower lat/lon lives in common/tower_position.m (single source
+    % of truth, shared with the radar). Positive offsets: North / East.
+    % Negative: South / West.
+    OffsetNorthM = 10000;        % m  (+N / -S). 10000 = 10 km north of tower
+    OffsetEastM  = 0;            % m  (+E / -W)
+    Altitude     = 100;          % m MSL (absolute, NOT relative to tower)
 
     % --- HOW it should be flying ---
     Speed    = 15;               % m/s true airspeed (Piper cruise ~15)
@@ -42,6 +39,7 @@ function teleport_aircraft()
     % --- Paths ---
     here = fileparts(mfilename('fullpath'));
     repo = fileparts(here);
+    addpath(fullfile(repo, 'common'));       % so tower_position() is findable
     xpcMatlab = fullfile(repo, 'XPlaneConnect-master', 'MATLAB');
     if exist(xpcMatlab, 'dir')
         addpath(xpcMatlab);
@@ -55,12 +53,20 @@ function teleport_aircraft()
 
     import XPlaneConnect.*
 
+    % --- Resolve the absolute target from the tower + the m offsets ---
+    % 1 degree latitude ≈ 111000 m everywhere
+    % 1 degree longitude ≈ 111000 * cos(lat) m
+    [TowerLat, TowerLon] = tower_position();
+    TargetLat = TowerLat + OffsetNorthM / 111000;
+    TargetLon = TowerLon + OffsetEastM  / (111000 * cosd(TowerLat));
+
     fprintf('teleport_aircraft: opening XPC at %s:%d ...\n', XPCHost, XPCPort);
     socket = openUDP(XPCHost, XPCPort);
     cleaner = onCleanup(@() closeUDP(socket));
 
     % Read current lat/lon just for the log line (so the user can see
-    % what changed). The teleport target itself is the hardcoded value.
+    % what changed). The teleport target itself is computed from the
+    % tower + offsets above.
     drefs_ll = {'sim/flightmodel/position/latitude', ...
                 'sim/flightmodel/position/longitude'};
     ll   = double(getDREFs(drefs_ll, socket));
@@ -86,8 +92,10 @@ function teleport_aircraft()
     pauseSim(0, socket);
 
     fprintf(['teleport_aircraft: from (%.4f, %.4f) → (%.4f, %.4f); ' ...
+             '%+.0f m N / %+.0f m E from tower (%.4f, %.4f); ' ...
              'alt=%.0f m, %.0f m/s @ %.0f° hdg, pitch %.1f°, ' ...
              'throttle %.2f, gear %d\n'], ...
             lat0, lon0, TargetLat, TargetLon, ...
+            OffsetNorthM, OffsetEastM, TowerLat, TowerLon, ...
             Altitude, Speed, Heading, Pitch, Throttle, Gear);
 end

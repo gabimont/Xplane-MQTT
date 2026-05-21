@@ -20,14 +20,12 @@ function state = radar_state()
     % Trail history: callsign -> struct('lat',[],'lon',[],'alt',[])
     state.history       = containers.Map('KeyType','char','ValueType','any');
 
-    % --- Tower position (HARDCODED) ---
-    % The radar plots aircraft positions relative to this fixed point.
-    % It does NOT change automatically when aircraft connect. Edit here
-    % (or in the GUI's Tower lat/lon fields) to use a different
-    % reference point. The "Snap" button still works for an explicit
-    % one-shot recenter to an aircraft if you ever want that.
-    state.tower_lat     = 46.6838;
-    state.tower_lon     = -122.9831;
+    % --- Tower position ---
+    % Read from common/tower_position.m so the radar and the aircraft
+    % publisher (teleport_aircraft.m) always agree on where "tower"
+    % is. To move the tower, edit common/tower_position.m — both sides
+    % follow automatically.
+    [state.tower_lat, state.tower_lon] = tower_position();
 
     % Display
     state.max_range_km  = 25;     % polar axes RLim

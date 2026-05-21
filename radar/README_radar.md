@@ -24,11 +24,15 @@ In the window:
 
 ## Tower position (fixed, hardcoded)
 
-The tower's lat/lon is **hardcoded** in [radar_state.m](radar_state.m)
-— the radar plots all aircraft as range/bearing from this point. The
-defaults place it near (46.6838, -122.9831). Edit either the file or
-the Tower lat/lon fields at the bottom of the GUI to use a different
-reference.
+The tower's lat/lon lives in
+[`common/tower_position.m`](../common/tower_position.m) — single source
+of truth, read by both the radar and the aircraft publisher
+(`teleport_aircraft.m`). The defaults are near (46.6838, -122.9831).
+Edit there once and both sides follow.
+
+You can also override the lat/lon at runtime by typing into the Tower
+lat/lon fields at the bottom-right of the GUI, but that's session-only
+and won't move the publisher's reference.
 
 The tower does **not** auto-snap to the first aircraft. If you do want
 to recenter on a specific aircraft at runtime (e.g. after teleporting

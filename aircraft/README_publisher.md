@@ -80,15 +80,15 @@ Skip the teleport entirely if you want to fly manually from the runway
 ### Customizing the teleport
 
 Open [`teleport_aircraft.m`](teleport_aircraft.m) and edit the values
-inside the **"EDIT THESE VALUES"** block at the top. Note that the
-target is **absolute lat/lon** — every call teleports to the same
-exact point, no compounding offsets:
+inside the **"EDIT THESE VALUES"** block at the top. The aircraft's
+target position is expressed as an **offset in METERS** from the
+tower (so you don't have to mess with lat/lon arithmetic):
 
 ```matlab
-% --- WHERE to put the aircraft (ABSOLUTE coordinates) ---
-TargetLat = 46.7738;     % degrees (+N / -S)
-TargetLon = -122.9831;   % degrees (+E / -W)
-Altitude  = 100;         % m MSL
+% --- WHERE to put the aircraft (offset in METERS from the tower) ---
+OffsetNorthM = 10000;        % m (+N / -S). 10000 = 10 km north of tower
+OffsetEastM  = 0;            % m (+E / -W)
+Altitude     = 100;          % m MSL (absolute, NOT relative to tower)
 
 % --- HOW it should be flying ---
 Speed    = 15;        % m/s true airspeed
@@ -99,10 +99,10 @@ Gear     = 1;         % 1=down (use for taildraggers/fixed gear),
                       % 0=up   (only for retractable-gear aircraft)
 ```
 
-Pick `TargetLat / TargetLon` near the tower's hardcoded position
-(see [`radar/radar_state.m`](../radar/radar_state.m)) so the aircraft
-shows up on the radar from the start. The default values place the
-aircraft about 10 km North of the default tower point.
+The tower's lat/lon lives in
+[`common/tower_position.m`](../common/tower_position.m) — single source
+of truth, read by both the publisher and the radar. Edit there once
+to move the tower; both sides follow.
 
 For higher/faster aircraft (jets, etc.), bump Altitude and Speed and
 set Gear=0. For the Piper or any fixed-gear plane keep Gear=1.
