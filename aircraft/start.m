@@ -1,11 +1,8 @@
 % start.m  —  Click Run (▶) in MATLAB to put the X-Plane aircraft in the
 %              air and begin publishing its position to MQTT.
 %
-%   Workflow:
-%     1. Open X-Plane with an aircraft on a runway.
-%     2. Open this file in the MATLAB editor.
-%     3. Press Run (▶) in the toolbar (or F5).
-%     4. When you're done, open `stop.m` and press Run.
+%   When the small dialog window pops up, the publisher is running.
+%   Close the dialog (X button) to stop the publisher cleanly.
 %
 %   What to edit:
 %     - Callsign / broker / rate           → block below in this file
@@ -46,8 +43,25 @@ pub = start_publisher( ...
     Broker   = BROKER, ...
     Port     = PORT, ...
     RateHz   = RATE_HZ);
-
-% Remember the handle so stop.m can find it
 setappdata(0, 'xplane_mqtt_pub', pub);
 
-fprintf('\n>>> Click Run on `stop.m` when you want to stop.\n\n');
+% --- Block here until the user closes the dialog ---
+msg = sprintf([ ...
+    'Publishing aircraft state to MQTT.\n\n' ...
+    'Callsign : %s\n' ...
+    'Topic    : %s\n' ...
+    'Broker   : %s:%d\n' ...
+    'Rate     : %g Hz\n\n' ...
+    'Close this window (or click OK) to STOP the publisher.'], ...
+    pub.callsign, pub.topic, BROKER, PORT, RATE_HZ);
+uiwait(msgbox(msg, 'X-Plane MQTT Publisher', 'modal'));
+
+% --- User closed the dialog: shut down ---
+fprintf('\nstop: shutting down publisher...\n');
+try
+    stop_publisher(pub);
+catch ME
+    warning('start:StopFailed', '%s', ME.message);
+end
+setappdata(0, 'xplane_mqtt_pub', []);
+fprintf('stop: done.\n');
