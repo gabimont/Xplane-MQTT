@@ -278,8 +278,7 @@ function radar_gui()
             if isa(fs_pax, 'matlab.graphics.axis.PolarAxes')
                 fs_pax.RLim = [0 v*1000];
             else
-                fs_pax.XLim = [-v, v] * 1000;
-                fs_pax.YLim = [-v, v] * 1000;
+                apply_map_limits(fs_pax);
             end
         end
         if ~isempty(fs_range_field) && isvalid(fs_range_field)
@@ -411,17 +410,18 @@ function radar_gui()
     end
 
     function render_map(ax, keep, stale)
-        % Draw all aircraft blips and trails into a cartesian axes (X=East, Y=North).
-        % Preserve the user's pan/zoom state (XLim/YLim) across redraws.
+        % Draw all aircraft blips and trails into a cartesian axes
+        % (X = East km, Y = North km). Preserve the user's pan/zoom state
+        % (XLim/YLim) across redraws.
         xl = ax.XLim;
         yl = ax.YLim;
         delete(ax.Children);
 
-        % Faint range rings centered on tower
+        % Faint range rings centered on tower (every max_range/5 km)
         theta_ring = linspace(0, 2*pi, 100);
         n_rings = 5;
         for k = 1:n_rings
-            rk = state.max_range_km * k / n_rings * 1000;
+            rk = state.max_range_km * k / n_rings;
             plot(ax, rk*cos(theta_ring), rk*sin(theta_ring), '-', ...
                  'Color', [0.3 0.7 0.3 0.35], 'LineWidth', 0.5, ...
                  'HandleVisibility','off');
@@ -441,8 +441,9 @@ function radar_gui()
             cs = keep{k};
             ac = state.aircraft(cs);
             [r_m, brg_rad] = ll2rb(state.tower_lat, state.tower_lon, ac.lat, ac.lon);
-            x = r_m * sin(brg_rad);   % East
-            y = r_m * cos(brg_rad);   % North
+            r_km = r_m / 1000;
+            x = r_km * sin(brg_rad);   % East (km)
+            y = r_km * cos(brg_rad);   % North (km)
             isStale = any(strcmp(stale, cs));
             if isStale, color = [0.6 0.6 0.6]; else, color = [0.2 1.0 0.4]; end
 
@@ -451,8 +452,8 @@ function radar_gui()
                 h = state.history(cs);
                 if numel(h.lat) >= 2
                     [rT, brgT] = ll2rb(state.tower_lat, state.tower_lon, h.lat, h.lon);
-                    plot(ax, rT .* sin(brgT), rT .* cos(brgT), '-', ...
-                         'Color', color, 'LineWidth', 1);
+                    plot(ax, (rT/1000) .* sin(brgT), (rT/1000) .* cos(brgT), ...
+                         '-', 'Color', color, 'LineWidth', 1);
                 end
             end
 
@@ -480,9 +481,11 @@ function radar_gui()
 
         fs_layout = uigridlayout(fs_fig, [2 1]);
         fs_layout.RowHeight   = {44, '1x'};
-        fs_layout.RowSpacing  = 4;
-        fs_layout.Padding     = [10 10 10 10];
+        fs_layout.RowSpacing  = 2;
+        fs_layout.Padding     = [4 4 4 4];
         fs_layout.BackgroundColor = [0 0 0];
+
+        fs_fig.SizeChangedFcn = @(~,~) on_fs_resize();
 
         fsTop = uigridlayout(fs_layout, [1 8]);
         fsTop.Layout.Row = 1;
@@ -546,12 +549,9 @@ function radar_gui()
             ax = axes('Parent', fs_layout);
             ax.Layout.Row    = 2;
             ax.Layout.Column = 1;
-            r = state.max_range_km * 1000;
-            ax.XLim          = [-r, r];
-            ax.YLim          = [-r, r];
             ax.XLimMode      = 'manual';
             ax.YLimMode      = 'manual';
-            ax.DataAspectRatio = [1 1 1];
+            ax.DataAspectRatio = [1 1 1];  % 1 km East = 1 km North on screen
             ax.Color         = [0.03 0.08 0.03];
             ax.XColor        = [0.6 0.95 0.6];
             ax.YColor        = [0.6 0.95 0.6];
@@ -559,9 +559,12 @@ function radar_gui()
             ax.GridAlpha     = 0.45;
             ax.FontSize      = 13;
             grid(ax, 'on');
-            xlabel(ax, 'East (m)');
-            ylabel(ax, 'North (m)');
+            xlabel(ax, 'East (km)');
+            ylabel(ax, 'North (km)');
             hold(ax, 'on');
+            % XLim/YLim sized so the visible area fills the window while
+            % preserving the 1:1 aspect.
+            apply_map_limits(ax);
             % Make the built-in axes toolbar (pan / zoom / restore) visible.
             try
                 axtoolbar(ax, {'pan','zoomin','zoomout','restoreview','datacursor'});
@@ -585,6 +588,39 @@ function radar_gui()
             fs_mode = 'ppi';
         end
         build_fs_axes();
+    end
+
+    function apply_map_limits(ax)
+        % Set XLim/YLim for the cartesian Map view so the visible area
+        % fills the available cell while keeping a 1:1 km aspect.
+        % The Range (km) controls the smaller window dimension.
+        if isempty(ax) || ~isvalid(ax), return; end
+        if isa(ax, 'matlab.graphics.axis.PolarAxes'), return; end
+        r = state.max_range_km;
+        ar = 1.0;
+        try
+            if ~isempty(fs_fig) && isvalid(fs_fig)
+                fp = fs_fig.Position;
+                % Subtract ~52 px for the top toolbar before computing ratio
+                ar = fp(3) / max(1, fp(4) - 52);
+                ar = max(0.3, min(5.0, ar));
+            end
+        catch
+        end
+        if ar >= 1
+            ax.XLim = [-r*ar, r*ar];
+            ax.YLim = [-r, r];
+        else
+            ax.XLim = [-r, r];
+            ax.YLim = [-r/ar, r/ar];
+        end
+    end
+
+    function on_fs_resize()
+        if ~isempty(fs_pax) && isvalid(fs_pax) ...
+                && ~isa(fs_pax, 'matlab.graphics.axis.PolarAxes')
+            apply_map_limits(fs_pax);
+        end
     end
 
     function on_fs_close()
