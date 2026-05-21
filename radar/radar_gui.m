@@ -94,8 +94,8 @@ function radar_gui()
     acTable.RowName       = {};
     acTable.Data          = cell(0,6);
 
-    twrRow = uigridlayout(rightSide, [1 5]);
-    twrRow.ColumnWidth = {'fit', 90, 90, 'fit', 70};
+    twrRow = uigridlayout(rightSide, [1 6]);
+    twrRow.ColumnWidth = {'fit', 90, 90, 'fit', 70, 70};
     twrRow.ColumnSpacing = 6;
     uilabel(twrRow, 'Text', 'Tower lat/lon:');
     twrLat = uieditfield(twrRow, 'numeric', 'Value', state.tower_lat, ...
@@ -106,6 +106,9 @@ function radar_gui()
     maxRange = uieditfield(twrRow, 'numeric', 'Value', state.max_range_km, ...
                            'Limits', [1 500], ...
                            'ValueChangedFcn', @on_range_change);
+    uibutton(twrRow, 'Text', 'Snap', ...
+             'Tooltip', 'Pin tower lat/lon to the first known aircraft', ...
+             'ButtonPushedFcn', @on_snap_tower);
 
     trailRow = uigridlayout(rightSide, [1 4]);
     trailRow.ColumnWidth = {'fit', 60, 'fit', 60};
@@ -144,7 +147,8 @@ function radar_gui()
                 subscribe(state.client, state.subscriptions{k}, ...
                           Callback=@on_message);
             end
-            state.connected = true;
+            state.connected     = true;
+            state.tower_snapped = false;   % allow auto-snap on next msg
             statusDot.FontColor = [0.2 0.85 0.2];
             statusLbl.Text = 'connected';
             connectBtn.Text = 'Disconnect';
@@ -220,6 +224,16 @@ function radar_gui()
         payload.topic   = char(string(topic));
         state.aircraft(cs) = payload;
 
+        % Auto-snap tower to the first aircraft seen on this connection
+        if ~state.tower_snapped
+            state.tower_lat = payload.lat;
+            state.tower_lon = payload.lon;
+            twrLat.Value    = payload.lat;
+            twrLon.Value    = payload.lon;
+            state.tower_snapped = true;
+            statusLbl.Text = sprintf('tower snapped to %s', cs);
+        end
+
         if isKey(state.history, cs)
             h = state.history(cs);
         else
@@ -239,6 +253,26 @@ function radar_gui()
     function on_range_change(~, ~)
         state.max_range_km = maxRange.Value;
         pax.RLim = [0 state.max_range_km*1000];
+    end
+
+    function on_snap_tower(~, ~)
+        ks = keys(state.aircraft);
+        if isempty(ks)
+            statusLbl.Text = 'no aircraft to snap to';
+            return;
+        end
+        cs = ks{1};
+        ac = state.aircraft(cs);
+        state.tower_lat = ac.lat;
+        state.tower_lon = ac.lon;
+        twrLat.Value = ac.lat;
+        twrLon.Value = ac.lon;
+        state.tower_snapped = true;
+        % Drop history so the trail restarts from the new origin
+        if isKey(state.history, cs)
+            remove(state.history, cs);
+        end
+        statusLbl.Text = sprintf('tower snapped to %s', cs);
     end
 
     function set_trail(v)

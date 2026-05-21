@@ -20,9 +20,12 @@ function state = radar_state()
     % Trail history: callsign -> struct('lat',[],'lon',[],'alt',[])
     state.history       = containers.Map('KeyType','char','ValueType','any');
 
-    % Tower position (configurable in GUI). Default near SBSP.
+    % Tower position (configurable in GUI). Default near SBSP, but the
+    % GUI auto-snaps it to the first aircraft seen after each Connect
+    % unless the user has already moved it manually.
     state.tower_lat     = -23.6273;
     state.tower_lon     = -46.6566;
+    state.tower_snapped = false;     % true once tower has been pinned
 
     % Display
     state.max_range_km  = 25;     % polar axes RLim
