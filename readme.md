@@ -8,7 +8,7 @@ tempo real.
 
 ```
    PC aeronave A             ┌──────────────┐              PC torre
-   (Windows + X-Plane)       │              │              (Mac ou Win)
+   (X-Plane + MATLAB)        │              │              (MATLAB)
                              │              │
    X-Plane ─XPC UDP→ MATLAB ─│─ MQTT pub ──▶│              MATLAB
    (Piper)            │      │              │              radar_gui
@@ -16,7 +16,7 @@ tempo real.
                       └──────│  broker.emqx │              ┌───┴──┐
                              │              │     ◀ sub ───│ PPI  │
    PC aeronave B             │              │              │ Map  │
-   (Windows + X-Plane)       │              │              └──────┘
+   (X-Plane + MATLAB)        │              │              └──────┘
                              │              │
    X-Plane ─XPC UDP→ MATLAB ─│─ MQTT pub ──▶│
    (Cessna)                  │              │
@@ -35,11 +35,11 @@ próprio.
 
 | Onde | O que precisa | Notas |
 |------|---------------|-------|
-| Mac (torre) | MATLAB R2022a+ com **Industrial Communication Toolbox** | só dá pra usar `mqttclient` com ela |
-| Windows (aeronave) | mesmas toolboxes + **X-Plane 11/12** + plugin **XPlaneConnect** | plugin vai em `<X-Plane>/Resources/plugins/XPlaneConnect/` |
+| PC torre | MATLAB R2022a+ com **Industrial Communication Toolbox** | só dá pra usar `mqttclient` com ela |
+| PC aeronave | mesmas toolboxes + **X-Plane 11/12** + plugin **XPlaneConnect** | plugin vai em `<X-Plane>/Resources/plugins/XPlaneConnect/` |
 | Rede | qualquer broker MQTT alcançável dos dois | default: `broker.emqx.io:1883` (público, sem credenciais) |
 
-### Lado torre (Mac)
+### Lado torre
 
 ```matlab
 cd Xplane-MQTT
@@ -52,7 +52,7 @@ wildcard `radar/aircraft/+/state` já está pronta. Qualquer aeronave
 que publicar aparece automaticamente. Botão **Open Fullscreen** abre
 o radar grande em janela própria (com toggle PPI/Map).
 
-### Lado aeronave (Windows)
+### Lado aeronave
 
 Com o X-Plane aberto, aeronave numa pista:
 
@@ -160,7 +160,7 @@ torre, 30 s/volta.
 Xplane-MQTT/
 ├── readme.md                       ← este arquivo
 │
-├── aircraft/        ◀ LADO PUBLISHER (Windows + X-Plane)
+├── aircraft/        ◀ LADO PUBLISHER (PC com X-Plane)
 │   ├── start.m              entry point — 1-click Play, edita CALLSIGN aqui
 │   ├── start_publisher.m    abre XPC + MQTT, monta timer
 │   ├── publish_aircraft.m   1 tick: lê 5 DataRefs → publica JSON
@@ -168,7 +168,7 @@ Xplane-MQTT/
 │   ├── stop_publisher.m     fecha timer + XPC
 │   └── README_publisher.md
 │
-├── radar/           ◀ LADO TOWER (Mac)
+├── radar/           ◀ LADO TOWER
 │   ├── radar_gui.m          GUI principal: PPI + tabela + fullscreen (Map toggle)
 │   ├── radar_state.m        factory do struct de estado (defaults)
 │   ├── ll2rb.m              Haversine: (lat,lon) ↔ (range_m, bearing_rad)
@@ -208,7 +208,7 @@ nunca divergem: editar uma vez, tudo se ajusta.
 | Publisher conecta mas radar não mostra nada | tópico ou broker diferentes entre os lados | os dois precisam usar o mesmo prefixo (`radar/aircraft/...`) e o mesmo broker |
 | Aeronave aparece longe demais / fora do PPI | torre hardcoded em outro lat/lon que não casa com o X-Plane | edite `common/tower_position.m` pra coords reais do aeroporto onde seu X-Plane carrega |
 | Triangle apontando errado | heading sendo enviado em graus em vez de radianos | publisher precisa converter (`atan2(sind, cosd)`) — ferramentas externas devem publicar em radianos `[-π, π]` |
-| `XPlaneConnect API not found` no Windows | pasta `+XPlaneConnect/` ausente | clone está incluído em `XPlaneConnect-master/MATLAB/+XPlaneConnect/` — addpath é automático em `start.m` |
+| `XPlaneConnect API not found` no PC aeronave | pasta `+XPlaneConnect/` ausente | clone está incluído em `XPlaneConnect-master/MATLAB/+XPlaneConnect/` — addpath é automático em `start.m` |
 | Aeronave cai/crash após teleport | `TargetLat/TargetLon` em cenário não carregado do X-Plane | use `OffsetNorthM=0, OffsetEastM=0` pra teleportar em cima do aeroporto |
 
 ---

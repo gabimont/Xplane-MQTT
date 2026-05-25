@@ -1,4 +1,4 @@
-# Aircraft publisher (Windows side)
+# Aircraft publisher
 
 Reads aircraft position/heading from a running X-Plane via XPlaneConnect (XPC)
 and publishes a JSON payload to MQTT at a fixed rate. Each running instance
@@ -6,8 +6,7 @@ represents one aircraft.
 
 ## Requirements
 
-- Windows (or any OS) with MATLAB R2022a+ and **Industrial Communication
-  Toolbox** (for `mqttclient`).
+- MATLAB R2022a+ with **Industrial Communication Toolbox** (for `mqttclient`).
 - X-Plane 11/12 running, with the XPlaneConnect plugin installed
   (`X-Plane/Resources/plugins/XPlaneConnect/`).
 - The XPlaneConnect MATLAB API on the path:
@@ -45,10 +44,10 @@ For each additional aircraft / PC:
    overlap.
 4. Press **Run (▶)**.
 
-The tower (`radar_gui` on the Mac) doesn't need any changes — its
-default subscription `radar/aircraft/+/state` picks up every callsign
-that publishes under the prefix. New aircraft just appear on the PPI
-as soon as they publish.
+The tower (`radar_gui`) doesn't need any changes — its default
+subscription `radar/aircraft/+/state` picks up every callsign that
+publishes under the prefix. New aircraft just appear on the PPI as
+soon as they publish.
 
 ## Quick start (manual, two commands)
 
