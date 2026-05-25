@@ -7,10 +7,9 @@ function pub = start_publisher(opts)
 %
 %   Returns a handle struct. Use stop_publisher(pub) to clean up.
 %
-%   Requires:
-%     - X-Plane running with XPlaneConnect plugin installed
-%     - XPlaneConnect MATLAB API on the path (or in ../XPlaneConnect-master/MATLAB)
-%     - Industrial Communication Toolbox (mqttclient)
+%   Requires X-Plane running with the XPlaneConnect plugin loaded, the
+%   XPlaneConnect MATLAB API on path (or under ../XPlaneConnect-master/
+%   MATLAB), and the Industrial Communication Toolbox (mqttclient).
 
     arguments
         opts.Broker    (1,:) char    = 'tcp://broker.emqx.io'
@@ -21,7 +20,6 @@ function pub = start_publisher(opts)
         opts.XPCPort   (1,1) double  = 49009
     end
 
-    % --- Paths ---
     here = fileparts(mfilename('fullpath'));
     repo = fileparts(here);
     xpcMatlab = fullfile(repo, 'XPlaneConnect-master', 'MATLAB');
@@ -30,23 +28,23 @@ function pub = start_publisher(opts)
     end
     addpath(fullfile(repo, 'common'));
 
+    % `which` (not `exist`) — `exist` doesn't recognize package-scoped
+    % names like '+XPlaneConnect.openUDP' so it always returned 0.
     if isempty(which('XPlaneConnect.openUDP')) && isempty(which('openUDP'))
         error('start_publisher:NoXPC', ...
               ['XPlaneConnect API not found on path. Expected ' ...
-               '+XPlaneConnect/openUDP.m under %s or anywhere on the MATLAB ' ...
-               'path. Tried adding: %s'], ...
-              xpcMatlab, xpcMatlab);
+               '+XPlaneConnect/openUDP.m under %s.'], xpcMatlab);
     end
 
-    % --- X-Plane (XPC) ---
     import XPlaneConnect.*
     fprintf('start_publisher: connecting to X-Plane at %s:%d ...\n', opts.XPCHost, opts.XPCPort);
     socket = openUDP(opts.XPCHost, opts.XPCPort);
 
-    % --- MQTT ---
     fprintf('start_publisher: connecting to MQTT broker %s:%d ...\n', opts.Broker, opts.Port);
     mqtt = mqttclient(opts.Broker, Port=opts.Port);
 
+    % Uppercased so the resulting MQTT topic is canonical regardless of
+    % how the user typed the callsign.
     callsign = upper(strtrim(opts.Callsign));
     topic    = mqtt_topic(callsign);
 
@@ -56,7 +54,9 @@ function pub = start_publisher(opts)
         'socket',   socket, ...
         'mqtt',     mqtt);
 
-    % --- Timer ---
+    % BusyMode='drop' — if a tick takes longer than 1/RateHz (slow
+    % broker or network hiccup), the next tick is skipped rather than
+    % queued, so the timer can't fall into a runaway backlog.
     T = timer( ...
         'Name',          sprintf('xplane_mqtt_pub_%s', callsign), ...
         'Period',        1/opts.RateHz, ...

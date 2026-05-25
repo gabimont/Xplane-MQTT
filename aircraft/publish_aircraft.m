@@ -1,9 +1,10 @@
 function publish_aircraft(state)
-%PUBLISH_AIRCRAFT Read X-Plane state via XPC and publish to MQTT.
-%   Called periodically by the timer started in start_publisher.
+%PUBLISH_AIRCRAFT Sample X-Plane and publish one JSON state message.
+%   Called by the timer set up in start_publisher. The try/catch
+%   swallows transient XPC or MQTT errors so the timer keeps firing
+%   instead of dying on a single bad sample.
 %
-%   state is a struct with fields:
-%     callsign (char), topic (char), socket (XPC handle), mqtt (mqttclient)
+%   state fields:  callsign  topic  socket (XPC)  mqtt (mqttclient)
 
     import XPlaneConnect.*
 
@@ -12,14 +13,12 @@ function publish_aircraft(state)
             'sim/flightmodel/position/latitude'      % deg
             'sim/flightmodel/position/longitude'     % deg
             'sim/flightmodel/position/elevation'     % m MSL
-            'sim/flightmodel/position/psi'           % deg
+            'sim/flightmodel/position/psi'           % deg true
             'sim/flightmodel/position/true_airspeed' % m/s
         };
         r = double(getDREFs(drefs, state.socket));
 
-        d2r = pi/180;
-        psi = r(4) * d2r;
-        psi = atan2(sin(psi), cos(psi));   % wrap [-pi, pi]
+        psi = atan2(sind(r(4)), cosd(r(4)));
 
         payload = struct( ...
             'callsign', state.callsign, ...

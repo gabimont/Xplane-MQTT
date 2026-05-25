@@ -1,148 +1,230 @@
-# X-Plane Integration + Radar MQTT
+# X-Plane Radar via MQTT
 
-Dois subsistemas convivem neste repositório:
+Sistema distribuído de radar tipo ATC: cada **aeronave** roda em um PC
+separado com X-Plane + MATLAB e publica sua posição/heading via MQTT.
+Uma **torre** central (GUI MATLAB com PPI estilo radar real e Map
+cartesiano) se inscreve no tópico e renderiza todas as aeronaves em
+tempo real.
 
-1. **Autopiloto PIPER-1-6 ↔ X-Plane via XPC** (Simulink, `xplane_autopilot.slx`).
-   A mesma malha de controle do `modeloNL1.slx`, agora pilotando a aeronave
-   dentro do X-Plane.
-2. **Radar MQTT distribuído**. Uma torre (GUI MATLAB) monitora N aeronaves;
-   cada uma roda X-Plane + MATLAB em outra máquina e publica sua posição
-   via MQTT. Veja [radar/README_radar.md](radar/README_radar.md) e
-   [aircraft/README_publisher.md](aircraft/README_publisher.md).
+```
+   PC aeronave A             ┌──────────────┐              PC torre
+   (Windows + X-Plane)       │              │              (Mac ou Win)
+                             │              │
+   X-Plane ─XPC UDP→ MATLAB ─│─ MQTT pub ──▶│              MATLAB
+   (Piper)            │      │              │              radar_gui
+                      │      │   broker     │                  │
+                      └──────│  broker.emqx │              ┌───┴──┐
+                             │              │     ◀ sub ───│ PPI  │
+   PC aeronave B             │              │              │ Map  │
+   (Windows + X-Plane)       │              │              └──────┘
+                             │              │
+   X-Plane ─XPC UDP→ MATLAB ─│─ MQTT pub ──▶│
+   (Cessna)                  │              │
+                             └──────────────┘
+```
 
-## Estrutura
+Funciona com 1 aeronave ou N aeronaves simultâneas (cada uma com seu
+callsign), através de qualquer broker público — não precisa servidor
+próprio.
+
+---
+
+## Início rápido
+
+### Pré-requisitos
+
+| Onde | O que precisa | Notas |
+|------|---------------|-------|
+| Mac (torre) | MATLAB R2022a+ com **Industrial Communication Toolbox** | só dá pra usar `mqttclient` com ela |
+| Windows (aeronave) | mesmas toolboxes + **X-Plane 11/12** + plugin **XPlaneConnect** | plugin vai em `<X-Plane>/Resources/plugins/XPlaneConnect/` |
+| Rede | qualquer broker MQTT alcançável dos dois | default: `broker.emqx.io:1883` (público, sem credenciais) |
+
+### Lado torre (Mac)
+
+```matlab
+cd Xplane-MQTT
+addpath('radar','common')
+radar_gui
+```
+
+Na janela: clica **Connect** → indicador vira verde → a subscrição
+wildcard `radar/aircraft/+/state` já está pronta. Qualquer aeronave
+que publicar aparece automaticamente. Botão **Open Fullscreen** abre
+o radar grande em janela própria (com toggle PPI/Map).
+
+### Lado aeronave (Windows)
+
+Com o X-Plane aberto, aeronave numa pista:
+
+```matlab
+cd Xplane-MQTT
+addpath('aircraft','common')
+% abre aircraft/start.m, edita o CALLSIGN no bloco do topo se quiser,
+% e clica em Run (▶) na barra do MATLAB
+```
+
+Pra parar: clica em **Stop (■)** na barra do MATLAB (ou Ctrl+C). O
+`onCleanup` chama `stop_publisher` automaticamente.
+
+Detalhes da configuração por PC: [aircraft/README_publisher.md](aircraft/README_publisher.md).
+
+---
+
+## Protocolo MQTT
+
+### Tópico
+
+```
+radar/aircraft/<CALLSIGN>/state
+```
+
+- `<CALLSIGN>` é o identificador único da aeronave (`PIPER01`,
+  `CESSNA02`, `GLIDER03`, ...). Sempre **MAIÚSCULAS** — o publisher
+  faz `upper(strtrim(...))` antes.
+- O template literal vive em **um único lugar**: [common/mqtt_topic.m](common/mqtt_topic.m).
+  Mudar o prefixo (`radar/aircraft/`) ali se propaga pros dois lados.
+
+A torre se inscreve com **wildcard MQTT** `+`:
+
+```
+radar/aircraft/+/state
+```
+
+O `+` casa com qualquer string num único nível, então a torre captura
+todas as aeronaves de uma vez, sem precisar saber os callsigns
+antecipadamente. Pra filtrar uma aeronave específica, digite o tópico
+exato (sem `+`) no campo Topic da GUI.
+
+### Payload (JSON UTF-8)
+
+```json
+{
+  "callsign": "PIPER01",
+  "lat": 46.8248,
+  "lon": -123.0380,
+  "alt": 152.3,
+  "hdg": 0.785,
+  "vt":  18.4,
+  "ts":  1747780000.123
+}
+```
+
+| Campo | Tipo | Unidade | Origem (DataRef do X-Plane) |
+|-------|------|---------|------------------------------|
+| `callsign` | string | — | configurado em `start.m` (`CALLSIGN`) |
+| `lat` | double | grau | `sim/flightmodel/position/latitude` |
+| `lon` | double | grau | `sim/flightmodel/position/longitude` |
+| `alt` | double | m MSL | `sim/flightmodel/position/elevation` |
+| `hdg` | double | **rad, wrap [-π, π]** | `sim/flightmodel/position/psi` (deg→rad) |
+| `vt` | double | m/s | `sim/flightmodel/position/true_airspeed` |
+| `ts` | double | Unix epoch s | `posixtime(datetime('now'))` no PC publisher |
+
+O heading vai em **radianos** wrappeados em `[-π, π]` (não em graus
+0–360) pra evitar a descontinuidade em 360°/0° que quebraria cálculos
+em loop. A torre converte pra desenhar o triângulo apontado.
+
+`vt` e `ts` são tecnicamente opcionais — uma ferramenta externa
+(`mosquitto_pub`, script Python) pode publicar só os 4 campos
+essenciais (`callsign`, `lat`, `lon`, `alt`, `hdg`) e a torre ainda
+funciona.
+
+### Como simular uma aeronave sem X-Plane
+
+Útil pra testar o radar isoladamente:
+
+```matlab
+addpath('common')
+c = mqttclient('tcp://broker.emqx.io', Port=1883);
+[lat0, lon0] = tower_position();
+for k = 1:60
+    ang = 2*pi*k/30;
+    p = struct('callsign','FAKE01', ...
+               'lat', lat0 + 0.05*cos(ang), ...
+               'lon', lon0 + 0.05*sin(ang)/cosd(lat0), ...
+               'alt', 500, 'hdg', ang+pi/2, 'vt', 50, ...
+               'ts', posixtime(datetime('now')));
+    write(c, 'radar/aircraft/FAKE01/state', jsonencode(p));
+    pause(0.5);
+end
+clear c
+```
+
+Faz uma aeronave fake voar em círculo de 5 km de raio em volta da
+torre, 30 s/volta.
+
+---
+
+## Estrutura do repositório
 
 ```
 Xplane-MQTT/
-├── xplane_autopilot.slx        # Autopiloto: controle + bridge UDP (Simulink)
-├── inicializar_xplane.m        # InitFcn: ganhos, refs, paths XPC, abre UDP
-├── posicionar_xplane.m         # StartFcn: teleporta a aeronave
-├── close_xplane.m              # StopFcn: fecha conexao UDP
-├── read_xplane.m               # Le 10 sensores via getDREFs
-├── send_xplane.m               # Envia [delta_e, delta_a, delta_r, delta_T]
-├── XPlaneConnect-master/       # Biblioteca XPC (API MATLAB + plugins)
+├── readme.md                       ← este arquivo
+├── README_autopilot.md             ← setup Simulink antigo (uso secundário)
 │
-├── radar/                      # Lado torre (Mac): GUI PPI subscrita em MQTT
-│   ├── radar_gui.m
-│   ├── radar_state.m
-│   ├── ll2rb.m
-│   └── README_radar.md
-├── aircraft/                   # Lado aeronave (Windows): publisher X-Plane→MQTT
-│   ├── start_publisher.m
-│   ├── publish_aircraft.m
-│   ├── stop_publisher.m
+├── aircraft/        ◀ LADO PUBLISHER (Windows + X-Plane)
+│   ├── start.m              entry point — 1-click Play, edita CALLSIGN aqui
+│   ├── start_publisher.m    abre XPC + MQTT, monta timer
+│   ├── publish_aircraft.m   1 tick: lê 5 DataRefs → publica JSON
+│   ├── teleport_aircraft.m  põe a aeronave no ar antes do publish começar
+│   ├── stop_publisher.m     fecha timer + XPC
 │   └── README_publisher.md
-└── common/
-    └── mqtt_topic.m            # Convenção de nome de tópico
+│
+├── radar/           ◀ LADO TOWER (Mac)
+│   ├── radar_gui.m          GUI principal: PPI + tabela + fullscreen (Map toggle)
+│   ├── radar_state.m        factory do struct de estado (defaults)
+│   ├── ll2rb.m              Haversine: (lat,lon) ↔ (range_m, bearing_rad)
+│   └── README_radar.md
+│
+├── common/          ◀ COMPARTILHADO entre publisher e torre
+│   ├── mqtt_topic.m         "radar/aircraft/%s/state" — único lugar
+│   └── tower_position.m     lat/lon hardcoded da torre — único lugar
+│
+└── XPlaneConnect-master/    biblioteca da NASA (incluída no repo)
 ```
 
-## Radar MQTT em uma linha
+E os arquivos do autopiloto Simulink legado na raiz
+(`xplane_autopilot.slx`, `read_xplane.m`, `send_xplane.m`,
+`inicializar_xplane.m`, `posicionar_xplane.m`, `close_xplane.m`) —
+veja [README_autopilot.md](README_autopilot.md) se for usar.
 
-- **Mac (torre)**: `addpath('radar'); radar_gui`
-- **Windows (aeronave, com X-Plane aberto)**: `addpath('aircraft'); pub = start_publisher(Callsign='PIPER01');`
-- Broker default: `tcp://broker.emqx.io:1883` (público, sem credenciais; test.mosquitto.org saía do ar com frequência).
-- Tópico: `radar/aircraft/<CALLSIGN>/state`, payload JSON `{lat, lon, alt, hdg, vt, ts, callsign}`.
+---
 
-Para o autopiloto Simulink → segue inalterado, instruções abaixo.
+## Configuração — onde mexer em cada coisa
 
-## Como usar
+| Quero mudar | Edito |
+|-------------|-------|
+| **CALLSIGN** da aeronave (1 valor por PC) | `aircraft/start.m`, bloco `EDIT PER AIRCRAFT` |
+| **Broker / Port / RateHz** | `aircraft/start.m`, bloco `SHARED` |
+| **Onde a aeronave teleporta** (offset em metros da torre) | `aircraft/teleport_aircraft.m`, bloco `EDIT THESE VALUES` |
+| **Posição da torre** (lat/lon) | **`common/tower_position.m`** — fonte única, lida por publisher E torre |
+| **Prefixo do tópico** (`radar/aircraft/...`) | `common/mqtt_topic.m`, single source of truth |
+| **Cor / fonte do PPI, raio default, trail length, stale/drop times** | `radar/radar_state.m` (defaults) e `radar/radar_gui.m` (estilo) |
 
-### 1. Instalar o plugin no X-Plane (uma vez)
-Copiar `XPlaneConnect-master/Resources/plugins/XPlaneConnect/` para
-`X-Plane/Resources/plugins/`. Versao `64/` para X-Plane 11/12.
+A "single source of truth" em `common/` garante que aeronave e torre
+nunca divergem: editar uma vez, tudo se ajusta.
 
-### 2. (Re)gerar o modelo (opcional, ja vem pronto no repo)
-```matlab
-cd PIPER-1-6-GUI
-inicializar          % carrega ganhos, Ue, Xe, refs
-criar_xplane_autopilot
-```
+---
 
-### 3. Rodar a simulacao
-Com o X-Plane aberto no Piper J-3 Cub em uma pista:
-```matlab
-open('Xplane/xplane_autopilot.slx')
-sim('xplane_autopilot')         % ou Run no Simulink
-```
+## Resolução de problemas
 
-Os callbacks do modelo cuidam de tudo:
-- `InitFcn` → `inicializar_xplane` (carrega workspace, abre UDP)
-- `StartFcn` → `posicionar_xplane` (pausa sim, teleporta para 100 m / VT=15 / hdg=0, despausa)
-- `StopFcn` → `close_xplane` (fecha UDP)
+| Sintoma | Causa provável | Fix |
+|---------|---------------|-----|
+| `mqttclient` undefined | Industrial Communication Toolbox não instalada | instale via Add-On Explorer; mesma toolbox precisa estar em todos os PCs |
+| Status fica `error: Failed to establish a connection` | broker inalcançável ou nome errado | confira broker (deve ter prefixo `tcp://`); teste com `nc -zv broker.emqx.io 1883` |
+| Publisher conecta mas radar não mostra nada | tópico ou broker diferentes entre os lados | os dois precisam usar o mesmo prefixo (`radar/aircraft/...`) e o mesmo broker |
+| Aeronave aparece longe demais / fora do PPI | torre hardcoded em outro lat/lon que não casa com o X-Plane | edite `common/tower_position.m` pra coords reais do aeroporto onde seu X-Plane carrega |
+| Triangle apontando errado | heading sendo enviado em graus em vez de radianos | publisher precisa converter (`atan2(sind, cosd)`) — ferramentas externas devem publicar em radianos `[-π, π]` |
+| `XPlaneConnect API not found` no Windows | pasta `+XPlaneConnect/` ausente | clone está incluído em `XPlaneConnect-master/MATLAB/+XPlaneConnect/` — addpath é automático em `start.m` |
+| Aeronave cai/crash após teleport | `TargetLat/TargetLon` em cenário não carregado do X-Plane | use `OffsetNorthM=0, OffsetEastM=0` pra teleportar em cima do aeroporto |
 
-### 4. Alterar referencias
-Definidas em `inicializar_xplane.m` ou no workspace antes do `sim`:
-```matlab
-h_ref   = 150;    % altitude (m)
-VT_ref  = 18;     % velocidade aerodinamica (m/s)
-psi_ref = pi/4;   % proa (rad)
-```
-O bloco `controle` le `h_ref`/`VT_ref` direto do workspace via `Constant1`/`Constant2`
-patcheados pelo `criar_xplane_autopilot.m`.
+---
 
-## Arquitetura do modelo
+## Apêndice — links úteis
 
-```
-              ┌──────────────┐                                      ┌──────────────┐
-              │ X-Plane      │   10 sinais   ┌─────────┐ buses     │ controle     │ 4 cmds  ┌──────────┐  ┌──────────────┐
-              │ Sensors      │──────────────▶│  Demux  │──Goto/From▶│ (subsystem   │────────▶│ Cmd Mux  │─▶│ X-Plane      │
-              │ (MATLAB Fcn  │               │ + Goto  │ p,q,r,phi, │ copiado do   │ Thr,    │ ordem    │  │ Actuators    │
-              │  read_xplane)│               └─────────┘ theta,psi, │ modeloNL1)   │ Elev,   │ delta_e/ │  │ (MATLAB Fcn  │
-              └──────────────┘                           VT,h,xN,xE └──────────────┘ Ail,Rud │ a/r/T    │  │  send_xplane)│
-                                                                                              └──────────┘  └──────────────┘
-```
-
-- **Solver**: `ode4`, `FixedStep = 0.05` s (20 Hz), `EnablePacing='on', PacingRate=1`
-  (real-time pacing essencial para casar com o X-Plane).
-- **MATLAB Function blocks**: `coder.extrinsic` para `read_xplane`/`send_xplane`,
-  com `ChartUpdate='DISCRETE', SampleTime='0.05'` forcado (lição do HIL: caso contrario
-  o chart herda contínuo e e chamado nos sub-passos do RK4).
-- **Goto/From**: sensores em laranja, comandos em ciano, para layout limpo.
-- **Reuso do `controle`**: copiado uma vez do `modeloNL1.slx` pelo build script.
-  As unicas modificacoes: `Constant1`→`h_ref`, `Constant2`→`VT_ref`, e zeramento
-  de `Elevator_eq`/`Aileron_eq`/`Rudder_eq` (mantem `Throttle_eq=Ue(1)`).
-
-## Sinais
-
-### Lidos do X-Plane (`read_xplane.m`)
-| # | Sinal | DataRef | Conversao |
-|---|-------|---------|-----------|
-| 1 | VT (m/s) | `true_airspeed` | — |
-| 2 | theta (rad) | `theta` | deg→rad |
-| 3 | q (rad/s) | `Q` | deg/s→rad/s |
-| 4 | h (m) | `elevation` | — |
-| 5 | phi (rad) | `phi` | deg→rad |
-| 6 | p (rad/s) | `P` | deg/s→rad/s |
-| 7 | psi (rad) | `psi` | deg→rad, **wrap [-π,π]** via `atan2(sin,cos)` |
-| 8 | r (rad/s) | `R` | deg/s→rad/s |
-| 9 | xN (m) | `-local_z` | relativo ao inicio |
-| 10 | xE (m) | `local_x` | relativo ao inicio |
-
-O wrap em `psi` evita que o X-Plane reportando 360° (≈6.28 rad) gere erro
-gigante na malha lateral nos primeiros segundos (saturava o aileron).
-
-### Enviados ao X-Plane (`send_xplane.m`)
-| # | Comando | Faixa | Conversao |
-|---|---------|-------|-----------|
-| 1 | delta_e | ±0.4363 rad | / 0.4363 → [−1,+1] |
-| 2 | delta_a | ±0.4363 rad | / 0.4363 → [−1,+1] |
-| 3 | delta_r | ±0.4363 rad | / 0.4363 → [−1,+1] |
-| 4 | delta_T | [0,1] | — |
-
-## Comunicacao
-
-- UDP `127.0.0.1:49009`
-- `GlobalSocket` (variavel global) compartilhada entre `read_xplane`/`send_xplane`/`posicionar_xplane`
-- Valores nao usados → `-998` (convencao XPC)
-
-## Solucao de problemas
-
-- **Aeronave cai nos primeiros segundos**: confirmar que o `psi` esta sendo wrapeado em `read_xplane.m` e que o `StartFcn` esta como `posicionar_xplane;` (nao `InitFcn`, senao a aeronave fica solta durante a compilacao).
-- **Modelo diverge / oscila**: confirmar `EnablePacing='on'`. Sem pacing o Simulink roda as-fast-as-possible e o laco com o X-Plane diverge.
-- **Porta UDP travada**: `clear global GlobalSocket` e rodar de novo.
-- **DataRef nao encontrado**: trocar `true_airspeed` por `indicated_airspeed` em `read_xplane.m`.
-
-## Dependencias
-- MATLAB R2025a + Simulink
-- X-Plane 11 ou 12
-- Plugin XPlaneConnect (incluso)
+- **Documentação MQTT MATLAB**: [`mqttclient`](https://www.mathworks.com/help/icomm/ref/mqttclient.html)
+- **Brokers públicos** alternativos:
+  - `broker.emqx.io` (default neste projeto)
+  - `broker.hivemq.com`
+  - `test.mosquitto.org` (instável, sai do ar com frequência)
+- **XPlaneConnect**: https://github.com/nasa/XPlaneConnect (já vendoreado em `XPlaneConnect-master/`)
+- **Repositório**: https://github.com/gabimont/Xplane-MQTT
