@@ -6,21 +6,27 @@ Uma **torre** central (GUI MATLAB com PPI estilo radar real e Map
 cartesiano) se inscreve no tópico e renderiza todas as aeronaves em
 tempo real.
 
-```
-   PC aeronave A             ┌──────────────┐              PC torre
-   (X-Plane + MATLAB)        │              │              (MATLAB)
-                             │              │
-   X-Plane ─XPC UDP→ MATLAB ─│─ MQTT pub ──▶│              MATLAB
-   (Piper)            │      │              │              radar_gui
-                      │      │   broker     │                  │
-                      └──────│  broker.emqx │              ┌───┴──┐
-                             │              │     ◀ sub ───│ PPI  │
-   PC aeronave B             │              │              │ Map  │
-   (X-Plane + MATLAB)        │              │              └──────┘
-                             │              │
-   X-Plane ─XPC UDP→ MATLAB ─│─ MQTT pub ──▶│
-   (Cessna)                  │              │
-                             └──────────────┘
+```mermaid
+flowchart LR
+    subgraph A["PC aeronave A"]
+        direction TB
+        XPA["X-Plane<br/>(Piper)"] -- "XPC UDP<br/>:49009" --> MA["MATLAB<br/>publisher"]
+    end
+
+    subgraph B["PC aeronave B"]
+        direction TB
+        XPB["X-Plane<br/>(Cessna)"] -- "XPC UDP<br/>:49009" --> MB["MATLAB<br/>publisher"]
+    end
+
+    BROKER[("MQTT broker<br/>broker.emqx.io:1883")]
+
+    subgraph T["PC torre"]
+        GUI["MATLAB<br/>radar_gui<br/>PPI + Map"]
+    end
+
+    MA -- "pub<br/>radar/aircraft/PIPER01/state" --> BROKER
+    MB -- "pub<br/>radar/aircraft/CESSNA02/state" --> BROKER
+    BROKER -- "sub<br/>radar/aircraft/+/state" --> GUI
 ```
 
 Funciona com 1 aeronave ou N aeronaves simultâneas (cada uma com seu
