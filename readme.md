@@ -159,7 +159,6 @@ torre, 30 s/volta.
 ```
 Xplane-MQTT/
 ├── readme.md                       ← este arquivo
-├── README_autopilot.md             ← setup Simulink antigo (uso secundário)
 │
 ├── aircraft/        ◀ LADO PUBLISHER (Windows + X-Plane)
 │   ├── start.m              entry point — 1-click Play, edita CALLSIGN aqui
@@ -181,11 +180,6 @@ Xplane-MQTT/
 │
 └── XPlaneConnect-master/    biblioteca da NASA (incluída no repo)
 ```
-
-E os arquivos do autopiloto Simulink legado na raiz
-(`xplane_autopilot.slx`, `read_xplane.m`, `send_xplane.m`,
-`inicializar_xplane.m`, `posicionar_xplane.m`, `close_xplane.m`) —
-veja [README_autopilot.md](README_autopilot.md) se for usar.
 
 ---
 

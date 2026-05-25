@@ -68,11 +68,10 @@ pub = start_publisher(Callsign='PIPER01');
 stop_publisher(pub);
 ```
 
-Default teleport (tuned for the Piper J-3 Cub, like the existing
-`posicionar_xplane.m`): lifts the aircraft to **100 m** at its current
-lat/lon, **15 m/s** heading **North**, nose **-7°**, gear **down**,
-throttle **0.49**. Enough velocity + throttle so the Piper doesn't
-stall.
+Default teleport (tuned for the Piper J-3 Cub): lifts the aircraft to
+**100 m** at its current lat/lon, **15 m/s** heading **North**, nose
+**-7°**, gear **down**, throttle **0.49**. Enough velocity + throttle
+so the Piper doesn't stall.
 
 Skip the teleport entirely if you want to fly manually from the runway
 — just run `start_publisher` directly.
